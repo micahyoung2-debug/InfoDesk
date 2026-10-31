@@ -1,0 +1,5 @@
+{
+  "name": "ops-display",
+  "private": true,
+  "engines": { "node": ">=18" }
+}

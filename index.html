@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ops display</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@300;400;500;600&family=Saira:wght@200;300;400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"
+  onerror="var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js';document.head.appendChild(s)"></script>
+<style>
+:root{
+  --bg:#02070c; --panel:#061521; --line:#1f4a63; --text:#cfe8f7; --dim:#6f93aa;
+  --accent:#5fd0ff; --hi:#e8f7ff; --warn:#ffb347; --glow:rgba(95,208,255,.35);
+  color-scheme:dark;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+/* This display is always dark by design; tokens are set per color scheme from JS. */
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ color-scheme:dark; } }
+:root[data-theme="dark"]{ color-scheme:dark; }
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0;overflow:hidden}
+body{
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 45%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 70%),
+    var(--bg);
+  color:var(--text);
+  font-family:"Saira Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:15;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 3px);
+}
+body:not(.show):not(.editing){cursor:none}
+body.light::after{display:none}
+
+/* Grid */
+.grid,.guides{
+  position:fixed;
+  inset:calc(env(safe-area-inset-top,0px) + 1.4vmin) 1.4vmin calc(env(safe-area-inset-bottom,0px) + 1.4vmin + var(--tick,0px));
+  display:grid;
+  grid-template-columns:repeat(12,minmax(0,1fr));
+  grid-template-rows:repeat(8,minmax(0,1fr));
+  gap:1.1vmin;
+}
+.guides{pointer-events:none;opacity:0;transition:opacity .3s}
+.guides i{border:1px dashed color-mix(in srgb, var(--accent) 22%, transparent)}
+.editing .guides{opacity:1}
+
+/* Zones */
+.zone{
+  --c:1.6vmin;
+  position:relative;min-width:0;min-height:0;padding:1px;
+  background:var(--line);
+  clip-path:polygon(var(--c) 0,100% 0,100% calc(100% - var(--c)),calc(100% - var(--c)) 100%,0 100%,0 var(--c));
+}
+.zone .in{
+  position:relative;height:100%;display:flex;flex-direction:column;
+  background:linear-gradient(180deg, color-mix(in srgb, var(--panel) 88%, var(--accent)) 0%, var(--panel) 30%, color-mix(in srgb, var(--panel) 80%, var(--bg)) 100%);
+  clip-path:polygon(calc(var(--c) - .5px) 0,100% 0,100% calc(100% - var(--c) + .5px),calc(100% - var(--c) + .5px) 100%,0 100%,0 calc(var(--c) - .5px));
+}
+.zone .in::before{ /* bright corner bracket */
+  content:"";position:absolute;right:0;top:0;width:3.2vmin;height:2px;background:var(--accent);
+  box-shadow:0 0 1vmin var(--glow);
+}
+.hd{
+  display:flex;align-items:center;gap:1vmin;
+  padding:1.1vmin 1.6vmin .6vmin 2.2vmin;
+  font:500 1.35vmin/1 "Saira Semi Condensed",sans-serif;
+  letter-spacing:.24em;text-transform:uppercase;color:var(--dim);
+  white-space:nowrap;
+}
+.hd::before{content:"";flex:none;width:.55vmin;height:.55vmin;background:var(--accent);box-shadow:0 0 1vmin var(--accent)}
+.hd .t{overflow:hidden;text-overflow:ellipsis}
+.hd .rule{flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
+.bd{flex:1;min-height:0;position:relative;container-type:size;padding:0 2.2vmin 1.6vmin;overflow:hidden}
+.bd-art{padding:0}
+.bd-art canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+.editing .zone{background:color-mix(in srgb, var(--accent) 55%, var(--line));cursor:pointer}
+.editing .zone.sel{background:var(--hi)}
+.editing .zone .in::after{
+  content:"Click to edit";position:absolute;right:1.6vmin;bottom:1.2vmin;
+  font:500 12px/1 "Saira Semi Condensed",sans-serif;letter-spacing:.1em;
+  color:var(--bg);background:var(--accent);padding:5px 8px;
+}
+.zone:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
+
+body.boot .zone{animation:boot .9s steps(1,end) both;animation-delay:calc(var(--i) * 90ms)}
+@keyframes boot{0%{opacity:0}25%{opacity:.7}35%{opacity:.15}55%{opacity:.9}65%{opacity:.4}100%{opacity:1}}
+
+/* Clock & countdown */
+.clock{height:100%;display:flex;flex-direction:column;justify-content:center;gap:2.5cqh}
+.big{
+  font:200 min(44cqh,17cqw)/.95 "Saira",sans-serif;color:var(--hi);
+  font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;
+  text-shadow:0 0 3cqh var(--glow);
+}
+.big .sec{color:var(--accent);opacity:.75}
+.big .u{font-size:.45em;color:var(--dim);margin-left:.05em}
+.date{font:400 min(10cqh,4.4cqw)/1.2 "Saira Semi Condensed",sans-serif;color:var(--accent);letter-spacing:.16em;text-transform:uppercase}
+.extras{display:flex;flex-wrap:wrap;gap:.3em 5cqw;font-size:min(9cqh,3.6cqw);color:var(--dim);letter-spacing:.06em}
+.extras b{font-weight:400;color:var(--text);font-variant-numeric:tabular-nums;margin-left:.4em}
+
+/* News */
+.news{height:100%;display:flex;flex-direction:column;gap:2.5cqh;padding-top:1cqh}
+.stamp{font-size:max(11px,min(4.2cqh,4cqw));color:var(--accent);letter-spacing:.14em;font-variant-numeric:tabular-nums}
+.now{display:block;text-decoration:none;margin:0;font:300 min(9cqh,6.6cqw)/1.28 "Saira",sans-serif;color:var(--hi);min-height:3.9em;text-wrap:pretty}
+.now.typing::after{content:"";display:inline-block;width:.5em;height:.9em;margin-left:.08em;vertical-align:-.1em;background:var(--accent)}
+.queue{list-style:none;margin:auto 0 0;padding:0;font-size:max(11px,min(4.6cqh,4.2cqw));color:var(--dim)}
+.now[href]:hover{text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:.15em}
+.editing .now{pointer-events:none}
+.catpick{position:absolute;top:0;right:2.2vmin;z-index:2;font-size:13px;padding:6px 8px;opacity:0;pointer-events:none;transition:opacity .35s}
+.show:not(.editing) .catpick{opacity:1;pointer-events:auto}
+.src{color:var(--accent);margin-right:.7em}
+.status{font-size:max(10px,min(3.4cqh,3.2cqw));color:var(--dim);opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.queue li{border-top:1px solid var(--line);padding:.7em 0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* Telemetry */
+.tele{display:flex;flex-direction:column;justify-content:space-evenly;height:82%}
+.row{display:grid;grid-template-columns:1fr auto;gap:.6cqh 1em;font-size:max(11px,min(5.2cqh,7cqw));letter-spacing:.06em}
+.row .v{color:var(--hi);font-variant-numeric:tabular-nums}
+.row .bar{grid-column:1/-1;height:max(5px,1.6cqh);background:color-mix(in srgb, var(--accent) 10%, transparent);position:relative}
+.row .bar i{position:absolute;inset:0 auto 0 0;width:50%;transition:width .9s ease;
+  background:repeating-linear-gradient(90deg,var(--accent) 0 6px,transparent 6px 8px);box-shadow:0 0 1cqh var(--glow)}
+.row.low .v{color:var(--warn)}
+.row.low .bar i{background:repeating-linear-gradient(90deg,var(--warn) 0 6px,transparent 6px 8px)}
+.tele-foot{height:18%;display:flex;justify-content:space-between;align-items:flex-end;font-size:max(11px,min(4.6cqh,6cqw));color:var(--dim);letter-spacing:.06em}
+.tele-foot b{font-weight:400;color:var(--text);font-variant-numeric:tabular-nums;margin-left:.3em}
+
+/* Notes */
+.notes{font:300 max(12px,min(7cqh,6cqw))/1.45 "Saira",sans-serif;color:var(--text);white-space:pre-wrap;overflow:hidden;height:100%;padding-top:1cqh}
+
+/* Image */
+.img{position:absolute;inset:0 2.2vmin 1.6vmin}
+.img img{width:100%;height:100%;display:block;filter:saturate(.85) contrast(1.05)}
+.img::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,transparent 60%,color-mix(in srgb,var(--panel) 70%,transparent)),
+  repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px);
+  box-shadow:inset 0 0 0 1px var(--line)}
+.empty-msg{height:100%;display:grid;place-items:center;text-align:center;color:var(--dim);font-size:max(12px,min(6cqh,5cqw));padding:1em}
+
+.no-zones{position:fixed;inset:0;display:grid;place-items:center;color:var(--dim);font-size:20px;pointer-events:none}
+
+/* HUD */
+.hud{
+  position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 2.4vmin);transform:translateX(-50%);
+  display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:10px;z-index:20;max-width:calc(100vw - 24px);
+  background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);
+  opacity:0;pointer-events:none;transition:opacity .35s;
+}
+.show .hud,.editing .hud{opacity:1;pointer-events:auto}
+button,select,.btn{
+  font:500 14px/1 "Saira Semi Condensed",sans-serif;letter-spacing:.06em;
+  background:transparent;color:var(--text);border:1px solid var(--line);
+  padding:9px 14px;cursor:pointer;
+}
+button:hover,select:hover{border-color:var(--accent);color:var(--hi)}
+button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
+button.danger{color:var(--warn);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}
+select{background:var(--panel)}
+
+/* Drawer */
+.drawer{
+  position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);bottom:calc(env(safe-area-inset-bottom,0px) + 12px);right:12px;
+  width:min(380px,calc(100vw - 24px));z-index:30;
+  background:var(--panel);border:1px solid var(--line);box-shadow:0 0 40px rgba(0,0,0,.6);
+  display:flex;flex-direction:column;
+  transform:translateX(calc(100% + 24px));transition:transform .3s ease;
+}
+.drawer.open{transform:none}
+.drawer h2{margin:0;padding:18px 20px 12px;font:500 18px/1.2 "Saira Semi Condensed",sans-serif;letter-spacing:.08em;color:var(--hi);border-bottom:1px solid var(--line)}
+.fields{flex:1;overflow:auto;padding:16px 20px;display:flex;flex-direction:column;gap:16px}
+.f{display:flex;flex-direction:column;gap:6px}
+.f>span{font-size:13px;color:var(--dim);letter-spacing:.04em}
+.f input,.f textarea,.f select{
+  width:100%;font:400 15px/1.35 "Saira Semi Condensed",sans-serif;color:var(--text);
+  background:var(--bg);border:1px solid var(--line);padding:9px 10px;
+}
+.f textarea{min-height:150px;resize:vertical}
+.pos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.hint{font-size:13px;color:var(--dim);line-height:1.45;margin:0}
+.drawer-foot{display:flex;justify-content:space-between;gap:8px;padding:14px 20px;border-top:1px solid var(--line)}
+
+.toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);left:50%;transform:translateX(-50%);z-index:40;
+  background:var(--panel);border:1px solid var(--accent);color:var(--hi);padding:10px 16px;font-size:15px;
+  opacity:0;transition:opacity .3s;pointer-events:none}
+.toast.on{opacity:1}
+
+
+.clock .date{display:flex;flex-wrap:wrap;gap:0 1.2em}
+.clock .hw{color:var(--text);letter-spacing:.04em;text-transform:none}
+.clock.has-pl{justify-content:flex-start;gap:1.6cqh;padding-top:1cqh}
+.clock.has-pl .big{font-size:min(30cqh,16cqw)}
+.clock.has-pl .date{font-size:min(7cqh,4cqw)}
+.places{display:flex;flex-direction:column;margin-top:auto;font-size:max(10px,min(7cqh,4.6cqw));min-height:0;overflow:hidden}
+.pl{display:grid;grid-template-columns:1fr auto auto;grid-template-areas:"n t w" "d t w";column-gap:4cqw;align-items:baseline;border-top:1px solid var(--line);padding:.35em 0}
+.pn{grid-area:n;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pd{grid-area:d;color:var(--dim);font-size:.75em}
+.pd:empty{display:none}
+.pt{grid-area:t;font-weight:300;color:var(--hi);font-variant-numeric:tabular-nums;font-size:1.25em}
+.pw{grid-area:w;color:var(--accent);white-space:nowrap;min-width:0}
+/* News extras */
+.diag{display:flex;flex-direction:column;gap:10px;margin-top:6px}
+.diag-row{display:flex;flex-direction:column;gap:3px;font-size:13px;line-height:1.4;border-left:2px solid var(--accent);padding-left:10px}
+.diag-row b{font-weight:500;color:var(--hi);word-break:break-all}
+.diag-row span{color:var(--dim)}
+.diag-row.bad{border-color:var(--warn)}
+.diag-row.bad b{color:var(--warn)}
+body.ticker-on{--tick:5.8vmin}
+.nb{margin-top:auto;display:flex;gap:3cqw;align-items:flex-end;min-height:0}
+.nl{flex:1;min-width:0}
+.nl .queue{margin:0}
+.news-qr{flex:none;width:min(30cqh,26cqw);display:flex;flex-direction:column;align-items:center;gap:.8cqh}
+.news-qr canvas{width:100%;height:auto;display:block;image-rendering:pixelated}
+.news-qr span{font-size:max(10px,min(3.2cqh,3cqw));color:var(--dim);letter-spacing:.06em}
+.news.hot .now,.news.hot .stamp,.queue li.hot{color:var(--warn)}
+.news.watch .now{text-shadow:0 0 2.5cqh var(--glow)}
+.news.watch .stamp{color:var(--hi)}
+.editing .map-cap{pointer-events:none}
+
+/* Ticker */
+.ticker{position:fixed;left:1.4vmin;right:1.4vmin;bottom:calc(env(safe-area-inset-bottom,0px) + 1.4vmin);height:4.6vmin;display:none;z-index:5;
+  background:var(--panel);border-top:1px solid var(--accent);border-bottom:1px solid var(--line)}
+.ticker-on .ticker{display:flex}
+.tk-label{flex:none;display:flex;align-items:center;padding:0 3.2vmin 0 2vmin;background:var(--accent);color:var(--bg);
+  font:600 1.5vmin/1 "Saira Semi Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;
+  clip-path:polygon(0 0,100% 0,calc(100% - 1.6vmin) 100%,0 100%)}
+.tk-view{flex:1;position:relative;overflow:hidden}
+.tk-view::before,.tk-view::after{content:"";position:absolute;top:0;bottom:0;width:4%;z-index:1;pointer-events:none}
+.tk-view::before{left:0;background:linear-gradient(90deg,var(--panel),transparent)}
+.tk-view::after{right:0;background:linear-gradient(-90deg,var(--panel),transparent)}
+.tk-track{position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;white-space:nowrap;will-change:transform;font:300 2.2vmin/1 "Saira",sans-serif;color:var(--text)}
+.tk-item{padding:0 1.4vmin;color:inherit;text-decoration:none}
+.tk-item[href]:hover{color:var(--hi);text-decoration:underline;text-decoration-color:var(--accent)}
+.tk-item.hot{color:var(--warn)}
+.tk-item.watch{color:var(--hi)}
+.tk-sep{color:var(--accent);opacity:.55;font-size:.7em}
+
+/* Big-story alert */
+.alert{position:fixed;top:calc(env(safe-area-inset-top,0px) + 2.4vmin);left:50%;z-index:35;width:max-content;max-width:min(92vw,120vmin);
+  display:flex;flex-direction:column;gap:.8vmin;padding:1.8vmin 2.8vmin;text-decoration:none;color:var(--hi);
+  background:color-mix(in srgb,var(--panel) 82%,var(--warn));border:1px solid var(--warn);
+  box-shadow:0 0 5vmin color-mix(in srgb,var(--warn) 35%,transparent);
+  transform:translate(-50%,calc(-100% - 6vmin));transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+.alert.on{transform:translate(-50%,0)}
+.alert .k{font:600 1.4vmin/1 "Saira Semi Condensed",sans-serif;letter-spacing:.22em;text-transform:uppercase;color:var(--warn)}
+.alert .h{font:300 2.8vmin/1.25 "Saira",sans-serif}
+
+/* Data readouts */
+.rd{height:100%;display:flex;flex-direction:column;gap:2.2cqh;padding-top:1cqh;min-height:0}
+.rd-big{font:200 min(28cqh,15cqw)/1 "Saira",sans-serif;color:var(--hi);font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 0 3cqh var(--glow)}
+.rd-big small{font-size:.38em;color:var(--dim);margin-left:.3em;font-weight:300}
+.rd-big .sec{color:var(--accent);opacity:.75}
+.rd-sub{font-size:max(11px,min(6.5cqh,5.2cqw));color:var(--accent);letter-spacing:.04em;line-height:1.3}
+.rd-txt{font-size:max(11px,min(6.5cqh,5.4cqw));color:var(--text);line-height:1.3}
+.rd-txt.nm{color:var(--hi)}
+.rd-list{list-style:none;margin:auto 0 0;padding:0;font-size:max(10px,min(5cqh,4.4cqw));color:var(--dim)}
+.rd-list li{display:flex;gap:1em;justify-content:space-between;border-top:1px solid var(--line);padding:.5em 0;white-space:nowrap}
+.rd-list li span{overflow:hidden;text-overflow:ellipsis}
+.rd-list b{font-weight:400;color:var(--text);font-variant-numeric:tabular-nums}
+.rd-list li.warn span,.rd-list li.warn b{color:var(--warn)}
+.rd-grid{display:grid;grid-template-columns:1fr 1fr;gap:3cqh 5cqw;font-size:max(10px,min(5cqh,4.6cqw))}
+.rd-grid span{display:block;color:var(--dim);letter-spacing:.06em;margin-bottom:.3em}
+.rd-grid b{font:300 1.9em/1 "Saira",sans-serif;color:var(--hi);font-variant-numeric:tabular-nums}
+.rd-grid b small{font-size:.5em;color:var(--dim)}
+.kp{display:flex;gap:1cqw;height:max(6px,4cqh)}
+.kp i{flex:1;background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.kp i.on{background:var(--accent);box-shadow:0 0 1cqh var(--glow)}
+.kp i.on.st{background:var(--warn)}
+.warn{color:var(--warn)!important}
+.wx-top{display:flex;align-items:center;gap:5cqw}
+.wx .rd-big{font-size:min(40cqh,20cqw)}
+.wx-days{display:grid;grid-template-columns:repeat(4,1fr);gap:2cqw;font-size:max(10px,min(4.6cqh,3.6cqw));margin-top:auto}
+.wx-days div{border-top:1px solid var(--line);padding-top:.5em;display:flex;flex-direction:column;gap:.2em;min-width:0}
+.wx-days span{color:var(--accent)} .wx-days b{font-weight:400;color:var(--hi);font-variant-numeric:tabular-nums}
+.wx-days i{font-style:normal;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@container (max-height: 200px){ .wx-days{display:none} }
+.ev-list{list-style:none;margin:0;padding:0;overflow:hidden;flex:1;font-size:max(11px,min(5cqh,5cqw))}
+.ev-list li{display:grid;grid-template-columns:auto 1fr;gap:.15em 1em;border-top:1px solid var(--line);padding:.55em 0}
+.ev-d{color:var(--accent);white-space:nowrap;font-variant-numeric:tabular-nums;grid-row:span 2}
+.ev-t{color:var(--hi);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev-w{grid-column:2;color:var(--dim);font-size:.85em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev-w:empty{display:none}
+.map-cap{position:absolute;left:2.2vmin;right:2.2vmin;bottom:1.2vmin;font-size:max(11px,min(4.4cqh,2.6cqw));color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
+.map-cap[href]:hover{color:var(--hi)}
+.map-cap b{color:var(--accent);font-weight:500;margin-right:1em;letter-spacing:.1em;text-transform:uppercase}
+.map-cap.hot,.map-cap.hot b{color:var(--warn)}
+.map-legend{position:absolute;right:2.2vmin;top:0;font-size:max(10px,min(3.6cqh,2cqw));color:var(--dim);letter-spacing:.06em;white-space:pre}
+.fh{margin:6px 0 -6px;font:500 13px/1.2 "Saira Semi Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
+.fh:first-child{margin-top:0}
+
+@media (prefers-reduced-motion: reduce){
+  .alert{transition:none}
+  body.boot .zone{animation:none}
+  .row .bar i{transition:none}
+  .drawer{transition:none}
+}
+</style>
+</head>
+<body class="show boot">
+<div class="guides" id="guides" aria-hidden="true"></div>
+<main class="grid" id="grid" aria-label="Display zones"></main>
+
+<div class="ticker" id="ticker" aria-label="News ticker">
+  <div class="tk-label" id="tkLabel">World</div>
+  <div class="tk-view" id="tkView"><div class="tk-track" id="tkTrack"></div></div>
+</div>
+<a class="alert" id="alert" target="_blank" rel="noopener noreferrer" role="status"><span class="k"></span><span class="h"></span></a>
+
+<div class="hud" id="hud" role="toolbar" aria-label="Display controls">
+  <button id="bEdit" title="Shortcut: E">Edit layout</button>
+  <button id="bAdd">Add zone</button>
+  <button id="bNews">News settings</button>
+  <select id="bPalette" aria-label="Color scheme">
+    <option value="earth">Earth blue</option>
+    <option value="mars">Mars red</option>
+    <option value="belt">Belt amber</option>
+  </select>
+  <select id="bMotion" aria-label="Motion">
+    <option value="full">Motion: full</option>
+    <option value="light">Motion: light</option>
+  </select>
+  <button id="bFull" title="Shortcut: F">Full screen</button>
+  <button id="bReset" class="danger">Reset layout</button>
+</div>
+
+<aside class="drawer" id="drawer" aria-label="Zone settings">
+  <h2 id="drawerTitle">Zone settings</h2>
+  <div class="fields" id="fields"></div>
+  <div class="drawer-foot">
+    <button id="bDelete" class="danger">Delete zone</button>
+    <button id="bDone" class="on">Done</button>
+  </div>
+</aside>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+const KEY = 'ops-display-v1';
+const NEWS_DEFAULTS = { watch:'', mute:'', alert:'on', alertMin:'3', ticker:'on', tickerCat:'world', tickerSources:'top\nr/worldnews', tickerSpeed:'normal' };
+const PALETTES = {
+  earth:{bg:'#02070c',panel:'#061521',line:'#1f4a63',text:'#cfe8f7',dim:'#6f93aa',accent:'#5fd0ff',hi:'#e8f7ff',warn:'#ffb347'},
+  mars: {bg:'#080303',panel:'#170807',line:'#5a2019',text:'#f4dad4',dim:'#a5776e',accent:'#ff5d4a',hi:'#fff0ec',warn:'#ffd166'},
+  belt: {bg:'#070502',panel:'#151006',line:'#4f3b14',text:'#f2e4c9',dim:'#a48d63',accent:'#ffb02e',hi:'#fff6e4',warn:'#ff6b4a'}
+};
+const $ = (s, r = document) => r.querySelector(s);
+const grid = $('#grid'), drawer = $('#drawer'), fieldsEl = $('#fields'), toastEl = $('#toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const T0 = Date.now();
+let C = PALETTES.earth;
+
+const pad = n => String(n).padStart(2, '0');
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const uid = () => Math.random().toString(36).slice(2, 9);
+function rgba(hex, a){ const n = parseInt(hex.slice(1), 16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
+function localInput(d){ return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+
+/* ---------- Live feeds ---------- */
+// On your own hosted copy, /api/feed relays feeds. Opened as a plain file, public relays are used instead.
+const HOSTED = /^https?:$/.test(location.protocol) && !/claude\.ai$/.test(location.hostname);
+// Relays fetch a feed for the page. Your Vercel relay is used when hosted; free public ones otherwise.
+const RELAYS = [];
+if (HOSTED) RELAYS.push({own:true, url:u => '/api/feed?url=' + encodeURIComponent(u)});
+RELAYS.push({url:u => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(u)});
+RELAYS.push({url:u => 'https://api.allorigins.win/get?url=' + encodeURIComponent(u), json:true});
+RELAYS.push({url:u => 'https://api.codetabs.com/v1/proxy/?quest=' + encodeURIComponent(u)});
+// Feed addresses found on earlier visits, so later checks go straight to them.
+const FEED_URLS = (() => { try { return JSON.parse(localStorage.getItem('ops-feed-urls')) || {}; } catch(e){ return {}; } })();
+const rememberFeed = (site, url) => { FEED_URLS[site] = url; try { localStorage.setItem('ops-feed-urls', JSON.stringify(FEED_URLS)); } catch(e){} };
+// Known feed addresses for sites whose feeds are hard to find automatically.
+const KNOWN_FEEDS = {
+  'aljazeera.com':'https://www.aljazeera.com/xml/rss/all.xml',
+  'theguardian.com':'https://www.theguardian.com/world/rss',
+  'bbc.com':'https://feeds.bbci.co.uk/news/world/rss.xml', 'bbc.co.uk':'https://feeds.bbci.co.uk/news/world/rss.xml',
+  'npr.org':'https://feeds.npr.org/1001/rss.xml',
+  'nytimes.com':'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml'
+};
+const LAST_CHECK = {}; // per newsfeed: how each source did on the last check
+const FEED_CACHE = {};
+
+function fetchT(u, ms){
+  const c = new AbortController(), t = setTimeout(() => c.abort(), ms);
+  return fetch(u, {signal:c.signal}).finally(() => clearTimeout(t));
+}
+async function fetchText(u){
+  let own = null, others = [];
+  for (const relay of RELAYS){
+    try {
+      const r = await fetchT(relay.url(u), 12000);
+      if (r.ok){
+        const t = relay.json ? ((await r.json()).contents || '') : await r.text();
+        if (t && t.length > 50) return t;
+        throw new Error('empty reply');
+      }
+      throw new Error(r.status === 403 || r.status === 429 ? `blocked (${r.status})` : r.status === 404 ? 'not found (404)' : `error ${r.status}`);
+    }
+    catch(e){
+      const msg = e.name === 'AbortError' ? 'timed out' : /^(blocked|not found|error|empty)/.test(e.message) ? e.message : 'couldn’t connect';
+      if (relay.own) own = msg; else others.push(msg);
+    }
+  }
+  // Your own relay reports what the site itself said; free relays mostly report their own limits.
+  throw new Error(own ? `the site answered: ${own}` : `the free relays couldn’t get it (${[...new Set(others)].join(', ')})`);
+}
+function ago(d){
+  const m = Math.max(0, Math.round((Date.now() - d) / 60000));
+  if (m < 60) return m <= 1 ? 'just now' : `${m}m ago`;
+  const h = Math.round(m / 60); return h < 48 ? `${h}h ago` : `${Math.round(h / 24)}d ago`;
+}
+const clean = s => (s || '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+
+function parseFeed(text, fallbackName){
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  if (doc.getElementsByTagName('parsererror').length) return null;
+  const nodes = [...doc.getElementsByTagName('item'), ...doc.getElementsByTagName('entry')];
+  if (!nodes.length) return null;
+  const ch = doc.querySelector('channel > title, feed > title');
+  const name = clean(ch && ch.textContent) || fallbackName;
+  return nodes.slice(0, 25).map(n => {
+    const g = tag => { const e = n.getElementsByTagName(tag)[0]; return e ? e.textContent.trim() : ''; };
+    const le = n.getElementsByTagName('link')[0];
+    const link = le ? (le.getAttribute('href') || le.textContent.trim()) : '';
+    let title = clean(g('title')), source = clean(g('source')) || name;
+    if (source && title.endsWith(' - ' + source)) title = title.slice(0, -(source.length + 3));
+    const dt = Date.parse(g('pubDate') || g('published') || g('updated') || g('dc:date'));
+    return { title, link, source, date: isNaN(dt) ? 0 : dt };
+  }).filter(x => x.title);
+}
+
+const EN_EDITIONS = {
+  'us':'US','usa':'US','united states':'US','america':'US','uk':'GB','gb':'GB','united kingdom':'GB','britain':'GB','great britain':'GB','england':'GB',
+  'australia':'AU','canada':'CA','india':'IN','ireland':'IE','new zealand':'NZ','nz':'NZ','singapore':'SG','south africa':'ZA',
+  'pakistan':'PK','nigeria':'NG','kenya':'KE','philippines':'PH','malaysia':'MY','ghana':'GH','bangladesh':'BD'
+};
+// News categories. "topic" uses a Google News section; "q" uses a search for that subject.
+const CATS = [
+  {id:'world', label:'World', topic:'WORLD'},
+  {id:'headlines', label:'Top headlines', top:true},
+  {id:'business', label:'Business', topic:'BUSINESS'},
+  {id:'economy', label:'Economy', q:'economy'},
+  {id:'science', label:'Science', topic:'SCIENCE'},
+  {id:'technology', label:'Technology', topic:'TECHNOLOGY'},
+  {id:'space', label:'Space', q:'space exploration'},
+  {id:'health', label:'Health', topic:'HEALTH'},
+  {id:'climate', label:'Climate', q:'climate change'},
+  {id:'politics', label:'Politics', q:'politics'},
+  {id:'entertainment', label:'Entertainment', topic:'ENTERTAINMENT'},
+  {id:'sports', label:'Sports', topic:'SPORTS'},
+  {id:'music', label:'Music', q:'music'},
+  {id:'ai', label:'AI', q:'artificial intelligence'}
+];
+const catById = id => CATS.find(c => c.id === id) || CATS[0];
+const catByWord = w => CATS.find(c => c.id === w.toLowerCase() || c.label.toLowerCase() === w.toLowerCase());
+const edition = cc => `hl=en-${cc}&gl=${cc}&ceid=${cc}:en`;
+const gnSearch = (q, cc = 'US') => `https://news.google.com/rss/search?q=${encodeURIComponent(q)}+when:1d&${edition(cc)}`;
+function catUrl(cat, cc = 'US'){
+  if (cat.top) return `https://news.google.com/rss?${edition(cc)}`;
+  if (cat.topic) return `https://news.google.com/rss/headlines/section/topic/${cat.topic}?${edition(cc)}`;
+  return gnSearch(cat.q, cc);
+}
+
+// A country line ("japan", "top uk") shows that country's news in the chosen category.
+// Countries with an English Google News edition use it; others get English coverage of that country.
+function placeSource(place, cat){
+  const key = place.toLowerCase().replace(/^the\s+/, '').trim();
+  const cc = EN_EDITIONS[key];
+  const name = (key.length <= 3 ? key.toUpperCase() : key.replace(/\b\w/g, c => c.toUpperCase())) + (cat.id === 'world' || cat.id === 'headlines' ? '' : ' ' + cat.label.toLowerCase());
+  const term = cat.q || (cat.topic && cat.topic !== 'WORLD' ? cat.label.toLowerCase() : '');
+  const search = gnSearch(`${term} ${place}`.trim());
+  if (cc){
+    const local = cat.id === 'world' ? catById('headlines') : cat;
+    return {name, url:catUrl(local, cc), fallback:search};
+  }
+  return {name, url:search};
+}
+function resolveSource(line, catId){
+  const s = line.trim(), cat = catById(catId);
+  const m = s.match(/^(?:reddit:|\/?r\/)([A-Za-z0-9_]+)/i) || s.match(/reddit\.com\/r\/([A-Za-z0-9_]+)/i);
+  if (m) return {name:'r/' + m[1], sub:m[1]};
+  const t = s.match(/^(?:top stories|top|headlines)(?:\s*[:\-]?\s+(.+)|\s*:\s*(.+))?$/i);
+  const rest = t ? (t[1] || t[2] || '').trim() : (!/[.\/]/.test(s) ? s : null);
+  if (t && !rest) return {name:cat.label, url:catUrl(cat), fallback: cat.id === 'world' ? 'https://www.aljazeera.com/xml/rss/all.xml' : undefined};
+  if (rest !== null){
+    const named = catByWord(rest);
+    if (named) return {name:named.label, url:catUrl(named)};
+    return placeSource(rest, cat);
+  }
+  const u = /^https?:\/\//i.test(s) ? s : 'https://' + s;
+  try { return {name:new URL(u).hostname.replace(/^www\./, ''), url:u}; } catch(e){ return null; }
+}
+
+async function loadFeed(src){
+  if (src.sub){
+    const fromJSON = j => j.data.children.filter(c => !c.data.stickied).map(c => ({
+      title:c.data.title, link:'https://www.reddit.com' + c.data.permalink, source:src.name, date:c.data.created_utc * 1000, score:c.data.score }));
+    const urls = [];
+    if (HOSTED) urls.push(`/api/reddit?sub=${src.sub}`); // works once a Reddit app is connected (see README)
+    urls.push(`https://www.reddit.com/r/${src.sub}/top.json?t=day&limit=20&raw_json=1`);
+    for (const u of urls){
+      try { const r = await fetchT(u, 10000); if (r.ok){ const l = fromJSON(await r.json()); if (l.length) return l; } } catch(e){}
+    }
+    for (const u of [`https://old.reddit.com/r/${src.sub}/top/.rss?t=day&limit=20`, `https://www.reddit.com/r/${src.sub}/top/.rss?t=day&limit=20`]){
+      try { const f = parseFeed(await fetchText(u), src.name); if (f && f.length) return f.map(x => ({...x, source:src.name})); } catch(e){}
+    }
+    throw new Error('Reddit blocked the request');
+  }
+  const host = (() => { try { return new URL(src.url).hostname.replace(/^www\./, ''); } catch(e){ return ''; } })();
+  const isHome = (() => { try { return new URL(src.url).pathname.replace(/\/$/, '') === ''; } catch(e){ return false; } })();
+  const direct = isHome && (FEED_URLS[src.url] || KNOWN_FEEDS[host]);
+  if (direct){
+    try { const f = parseFeed(await fetchText(direct), src.name); if (f && f.length) return f; } catch(e){}
+  }
+  let text = '', firstErr = null;
+  try { text = await fetchText(src.url); } catch(e){ firstErr = e; }
+  let f = text ? parseFeed(text, src.name) : null;
+  if (f && f.length) return f;
+  if (src.fallback){
+    try { f = parseFeed(await fetchText(src.fallback), src.name); if (f && f.length) return f; } catch(e){}
+    throw firstErr || new Error('no stories');
+  }
+  // A web page (or a blocked one): look for the site's feed link, then try the usual feed addresses at once.
+  const tries = [];
+  if (text){
+    const html = new DOMParser().parseFromString(text, 'text/html');
+    html.querySelectorAll('link[rel~="alternate"][type*="rss"], link[rel~="alternate"][type*="atom"]').forEach(l => {
+      try { tries.push(new URL(l.getAttribute('href'), src.url).href); } catch(e){}
+    });
+  }
+  let origin; try { origin = new URL(src.url).origin; } catch(e){ throw firstErr || e; }
+  ['/feed', '/feed/', '/rss', '/rss.xml', '/feed.xml', '/atom.xml', '/index.xml'].forEach(p => tries.push(origin + p));
+  try {
+    const found = await Promise.any([...new Set(tries)].slice(0, 8).map(async u => {
+      const items = parseFeed(await fetchText(u), src.name);
+      if (!items || !items.length) throw new Error('not a feed');
+      return {u, items};
+    }));
+    if (isHome) rememberFeed(src.url, found.u);
+    return found.items;
+  } catch(e){
+    if (firstErr) throw firstErr;
+  }
+  throw new Error('this site doesn’t seem to publish a feed');
+}
+
+async function loadSources(lines, maxAgeMin, catId){
+  const results = await Promise.all(lines.map(async line => {
+    const src = resolveSource(line, catId), ck = line + '|' + catId;
+    if (!src) return {name:line, err:true, error:'not a valid source', items:[]};
+    const c = FEED_CACHE[ck];
+    if (c && Date.now() - c.at < maxAgeMin * 60000 * .9) return c;
+    try { const items = await loadFeed(src); return FEED_CACHE[ck] = {at:Date.now(), name:src.name, items}; }
+    catch(e){ return c ? {...c, stale:e.message} : {name:src.name, err:true, error:e.message, items:[]}; }
+  }));
+  const lists = results.map((r, fi) => r.items.slice(0, 20).map(it => ({...it, feed:fi})));
+  cluster(lists.flat());
+  // Interleave sources so no single site dominates, keeping each source's own ranking.
+  const out = [], seen = new Set();
+  for (let k = 0; k < 20; k++) lists.forEach(l => {
+    const it = l[k]; if (!it) return;
+    const key = it.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 50);
+    if (!seen.has(key)){ seen.add(key); out.push(it); }
+  });
+  const report = results.map((r, k) => ({ line:lines[k], name:r.name, ok:!r.err, count:r.items.length, error:r.error || r.stale || '' }));
+  return { items:out.slice(0, 80), ok:results.filter(r => !r.err).length, failed:results.filter(r => r.err).map(r => r.name), report };
+}
+
+/* ---------- Clustering, watch and mute words, big-story alerts ---------- */
+const STOP = new Set('the a an and or of to in on for with at by from as is are was were be been it its this that after over into new says say said will would could about amid than more up out who what why how has have had not but their his her they them we you your our us just first last year years day week amid against before under while'.split(' '));
+function toks(t){ return new Set(t.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !STOP.has(w))); }
+function overlap(a, b){ let s = 0; for (const w of a) if (b.has(w)) s++; return s; }
+// Marks each story with how many of your separate sources are covering it.
+function cluster(items){
+  const T = items.map(i => toks(i.title)), parent = items.map((_, i) => i);
+  const find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++){
+    if (items[i].feed === items[j].feed) continue;
+    const sh = overlap(T[i], T[j]);
+    if (sh >= 3 && sh >= .5 * Math.min(T[i].size, T[j].size)) parent[find(i)] = find(j);
+  }
+  const groups = {};
+  items.forEach((it, i) => { const r = find(i); (groups[r] = groups[r] || new Set()).add(it.feed); });
+  items.forEach((it, i) => { it.heat = groups[find(i)].size; });
+}
+const RX = {};
+const wordRx = w => RX[w] || (RX[w] = new RegExp('(?<![\\p{L}\\p{N}])' + w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '(?![\\p{L}\\p{N}])', 'iu'));
+const wordList = s => (s || '').split(',').map(x => x.trim()).filter(Boolean);
+function prefsFilter(items){
+  const mute = wordList(state.news.mute), watch = wordList(state.news.watch);
+  const r = items.filter(it => !mute.some(w => wordRx(w).test(it.title))).map(it => ({...it, watch: watch.find(w => wordRx(w).test(it.title)) || ''}));
+  return [...r.filter(i => i.watch), ...r.filter(i => !i.watch)];
+}
+const alertMin = () => Math.max(2, +state.news.alertMin || 3);
+const isHot = it => state.news.alert !== 'off' && (it.heat || 0) >= alertMin();
+
+const ALERTED = []; let alertQ = [], alertBusy = false;
+function checkAlerts(items){
+  if (state.news.alert === 'off') return;
+  items.filter(isHot).forEach(it => {
+    const tk = toks(it.title);
+    if (ALERTED.some(a => overlap(tk, a) >= 3)) return;
+    ALERTED.push(tk); alertQ.push(it);
+  });
+  alertQ = alertQ.slice(-3); runAlert();
+}
+function runAlert(){
+  if (alertBusy || !alertQ.length) return;
+  alertBusy = true;
+  const it = alertQ.shift(), el = $('#alert');
+  $('.k', el).textContent = `Big story  ·  ${it.heat} of your sources`;
+  $('.h', el).textContent = it.title;
+  if (it.link) el.href = it.link; else el.removeAttribute('href');
+  el.classList.add('on');
+  setTimeout(() => { el.classList.remove('on'); setTimeout(() => { alertBusy = false; runAlert(); }, 900); }, 30000);
+}
+
+// Shared list of headlines from every newsfeed and the ticker, read by the map.
+const NEWSBUS = {
+  feeds:{}, subs:new Set(),
+  set(id, items){ this.feeds[id] = items; this.subs.forEach(f => f()); },
+  drop(id){ if (id in this.feeds){ delete this.feeds[id]; this.subs.forEach(f => f()); } },
+  all(){ const seen = new Set(), out = []; Object.values(this.feeds).forEach(l => l.forEach(it => { if (!seen.has(it.title)){ seen.add(it.title); out.push(it); } })); return out; }
+};
+
+/* ---------- Live data services (shared, so two zones never fetch twice) ---------- */
+const SERVICES = {};
+function service(name, fn, ms){
+  return SERVICES[name] || (SERVICES[name] = {
+    subs:new Set(), data:null, err:null, at:0, timer:null, busy:false,
+    use(cb){
+      this.subs.add(cb);
+      if (this.data || this.err) cb(this.data, this.err);
+      if (!this.timer){ this.tick(); this.timer = setInterval(() => this.tick(), ms); }
+      return () => { this.subs.delete(cb); if (!this.subs.size){ clearInterval(this.timer); this.timer = null; } };
+    },
+    async tick(){
+      if (this.busy || (this.data && Date.now() - this.at < ms * .9)) return;
+      this.busy = true;
+      try { this.data = await fn(this.data); this.err = null; this.at = Date.now(); }
+      catch(e){ this.err = e; }
+      this.busy = false;
+      this.subs.forEach(cb => cb(this.data, this.err));
+    }
+  });
+}
+async function getJSON(u){
+  try { const r = await fetchT(u, 12000); if (r.ok) return await r.json(); } catch(e){}
+  return JSON.parse(await fetchText(u));
+}
+const svcQuakes = () => service('quakes', async () => {
+  const j = await getJSON('https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/2.5_day.geojson');
+  return j.features.map(f => ({ mag:f.properties.mag, place:f.properties.place || 'Unknown location', time:f.properties.time, url:f.properties.url,
+    lon:f.geometry.coordinates[0], lat:f.geometry.coordinates[1], depth:f.geometry.coordinates[2] })).filter(q => q.mag != null);
+}, 5 * 60e3);
+const svcISS = () => service('iss', async prev => {
+  const j = await getJSON('https://api.wheretheiss.at/v1/satellites/25544');
+  const trail = [...((prev && prev.trail) || []), [j.latitude, j.longitude]].slice(-500);
+  return { lat:j.latitude, lon:j.longitude, alt:j.altitude, vel:j.velocity, vis:j.visibility, trail };
+}, 5000);
+const svcLaunches = () => service('launches', async () => {
+  let j;
+  try { j = await getJSON('https://ll.thespacedevs.com/2.3.0/launches/upcoming/?limit=8&mode=list'); }
+  catch(e){ j = await getJSON('https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=8&mode=list'); }
+  return (j.results || []).map(r => ({
+    name:r.name, net:Date.parse(r.net), status:(r.status && (r.status.abbrev || r.status.name)) || '',
+    provider:(r.launch_service_provider && r.launch_service_provider.name) || r.lsp_name || '',
+    pad:(r.pad && r.pad.location && r.pad.location.name) || r.location || (r.pad && r.pad.name) || ''
+  })).filter(l => !isNaN(l.net)).sort((a, b) => a.net - b.net);
+}, 30 * 60e3);
+const svcSpaceWx = () => service('swx', async () => {
+  const [kp, wind, flare] = await Promise.allSettled([
+    getJSON('https://services.swpc.noaa.gov/json/planetary_k_index_1m.json'),
+    getJSON('https://services.swpc.noaa.gov/products/summary/solar-wind-speed.json'),
+    getJSON('https://services.swpc.noaa.gov/json/goes/primary/xray-flares-latest.json')
+  ]);
+  const out = {kp:null, wind:null, flare:null};
+  if (kp.status === 'fulfilled' && kp.value.length){
+    const l = kp.value[kp.value.length - 1];
+    const v = Array.isArray(l) ? parseFloat(l[1]) : parseFloat(l.estimated_kp ?? l.kp_index ?? l.kp);
+    if (!isNaN(v)) out.kp = v;
+  }
+  if (wind.status === 'fulfilled'){
+    let o = wind.value; if (Array.isArray(o)) o = o[o.length - 1];
+    for (const k in o) if (/speed/i.test(k)){ const n = parseFloat(o[k]); if (!isNaN(n)){ out.wind = n; break; } }
+  }
+  if (flare.status === 'fulfilled'){
+    const f = Array.isArray(flare.value) ? flare.value[0] : flare.value;
+    if (f) out.flare = f.max_class || f.current_class || null;
+  }
+  if (out.kp == null && out.wind == null && out.flare == null) throw new Error('no data');
+  return out;
+}, 5 * 60e3);
+const GEO = {};
+async function geocode(place){
+  const key = place.toLowerCase().trim();
+  if (GEO[key]) return GEO[key];
+  const [name, ...rest] = place.split(','), hint = rest.join(',').trim().toLowerCase();
+  const g = await getJSON(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name.trim())}&count=10&language=en`);
+  const res = g.results || []; if (!res.length) throw new Error('place not found');
+  return GEO[key] = (hint && res.find(r => [r.admin1, r.country, r.country_code].some(x => x && x.toLowerCase().startsWith(hint)))) || res[0];
+}
+const unitQS = units => units === 'f' ? '&temperature_unit=fahrenheit&wind_speed_unit=mph' : '';
+const svcWeather = (place, units) => service('wx:' + place.toLowerCase() + ':' + units, async () => {
+  const loc = await geocode(place);
+  const f = await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=4${unitQS(units)}`);
+  return { name:loc.name + (loc.admin1 ? ', ' + loc.admin1 : ''), cur:f.current, daily:f.daily, wind:units === 'f' ? 'mph' : 'km/h' };
+}, 15 * 60e3);
+// A place for the clock: its time zone, plus current weather if wanted.
+const svcPlace = (place, units, wx) => service('pl:' + place.toLowerCase() + ':' + units + ':' + wx, async () => {
+  const loc = await geocode(place);
+  let cur = null;
+  if (wx){
+    try { cur = (await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}&current=temperature_2m,weather_code&timezone=auto${unitQS(units)}`)).current; } catch(e){}
+  }
+  return { name:loc.name, tz:loc.timezone || 'UTC', cur };
+}, 15 * 60e3);
+const svcCalendar = links => service('ics:' + links.join('|'), async () => {
+  const all = await Promise.allSettled(links.map(l => fetchText(l.replace(/^webcal:\/\//i, 'https://'))));
+  const ev = [];
+  all.forEach(r => { if (r.status === 'fulfilled') ev.push(...parseICS(r.value)); });
+  if (!ev.length && all.every(r => r.status === 'rejected')) throw new Error('unreachable');
+  return ev;
+}, 30 * 60e3);
+
+const WMO = c => c === 0 ? 'Clear' : c === 1 ? 'Mostly clear' : c === 2 ? 'Partly cloudy' : c === 3 ? 'Overcast' : c <= 48 ? 'Fog'
+  : c <= 57 ? 'Drizzle' : c <= 67 ? 'Rain' : c <= 77 ? 'Snow' : c <= 82 ? 'Showers' : c <= 86 ? 'Snow showers' : 'Thunderstorms';
+const hhmm = d => { d = new Date(d); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+/* ---------- Calendars (.ics) ---------- */
+function parseICS(text){
+  const lines = text.replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+  const ev = []; let cur = null;
+  for (const ln of lines){
+    if (ln === 'BEGIN:VEVENT') cur = {};
+    else if (ln === 'END:VEVENT'){ if (cur) ev.push(cur); cur = null; }
+    else if (cur){
+      const i = ln.indexOf(':'); if (i < 0) continue;
+      const head = ln.slice(0, i), key = head.split(';')[0];
+      if (!(key in cur)) cur[key] = {val:ln.slice(i + 1), head};
+    }
+  }
+  const un = s => (s || '').replace(/\\n/gi, ' ').replace(/\\([,;\\])/g, '$1').trim();
+  const date = p => {
+    if (!p) return 0;
+    const m = p.val.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?(Z)?)?/); if (!m) return 0;
+    const [, Y, M, D, h = '0', mi = '0', s = '0', z] = m;
+    return z ? Date.UTC(+Y, M - 1, +D, +h, +mi, +s) : new Date(+Y, M - 1, +D, +h, +mi, +s).getTime();
+  };
+  return ev.map(e => ({ title:un(e.SUMMARY && e.SUMMARY.val), where:un(e.LOCATION && e.LOCATION.val), url:e.URL && e.URL.val,
+    start:date(e.DTSTART), allDay:!!(e.DTSTART && /^\d{8}$/.test(e.DTSTART.val)) })).filter(e => e.title && e.start);
+}
+
+/* ---------- QR codes ---------- */
+function drawQR(cv, text){
+  if (!window.qrcode || !text) return false;
+  try {
+    const q = qrcode(0, 'L'); q.addData(text); q.make();
+    const n = q.getModuleCount(), m = 2, s = Math.max(2, Math.floor(300 / (n + m * 2))), size = (n + m * 2) * s;
+    cv.width = cv.height = size;
+    const x = cv.getContext('2d');
+    x.fillStyle = C.hi; x.fillRect(0, 0, size, size); x.fillStyle = C.bg;
+    for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) x.fillRect((c + m) * s, (r + m) * s, s, s);
+    return true;
+  } catch(e){ return false; }
+}
+
+/* ---------- Map data ---------- */
+const MASK_COLS = 144, MASK_ROWS = 56; // 2.5° cells, latitude 80°N to 57.5°S
+const MASK = Uint8Array.from(atob('AAAAAj/7///ABgACQAYAAAAAAAAAAVff//4AAgAAAADAAAAAAAABpZAAf/8AAAADwB/8AYAAAAAD/O/AP/4AAAAGCf//8OAAAf8//mfwH/wAAPwCX//////mw/////4+H/AAB/9/////////Z/////4+HwHAD/3/////////A////+D0DgAAPv/////////+A/P//8D4BgAAPn////////zwAEA///B+AAACFv///////wGAAAAP//5/gAAPFf///////gMAAAAP//7/wAALP////////8MAAAAH////wAAD/////////0AAAAAD///8QAAB/////////wAAAAAD///9AAAB//H//////gAAAAAD///wAAAPh/T//////MAAAAAD///gAAAPEr//////4IAAAAAB///AAAAGUF//////MYAAAAAA//+AAAAH8AP/////BwAAAAAAf/8AAAAP/MP/////iAAAAAAAP/8AAAAP////////gAAAAAAAP4EAAAAf///3////AAAAAAAAB4AAAAA///3x////AAAAAAAAB4CAAAB/////H//8AAAAAAAAA4gQAAB///7+B8fgAAAAAAAAAfgQAAB////8B4fggAAAAAAAABwAAAB///94BwHwAAAAAAAAAAYAAAB///+AAwFwAAAAAAAAAAI+AAA////4AwAhQAAAAAAAAAF/gAAf///wAIAAQAAAAAAAAAB/4AAPP//gAACCAAAAAAAAAAB/8AAAD//AAAGOAAAAAAAAAAD/+AAAD/+AAADeQAAAAAAAAAD//wAAD/8AAADvnYAAAAAAAAH//8AAB/8AAABAg8AAAAAAAAD//8AAB/8AAAAEQeAAAAAAAAB//8AAB/8AAAAAQAAAAAAAAAB//4AAB/8AAAAADIAAAAAAAAA//4AAB/8QAAAAPsAAAAAAAAAf/wAAD/5wAAAAf+AAAAAAAAAP/wAAB/xwAAAD/+AAAAAAAAAP/gAAB/5gAAAD//AAAAAAAAAf+AAAA/wgAAAH//gAAAAAAAAf+AAAA/gAAAAH//wAAAAAAAAf8AAAAfAAAAAD//wAAAAAAAAf4AAAAeAAAAAD5/gAAAAAAAAfwAAAAIAAAAADA/AAAAAAAAA/gAAAAAAAAAAAAPACAAAAAAA+AAAAAAAAAAAAAAAGAAAAAAA8AAAAAAAAAAAAACAIAAAAAAA8AAAAAAAAAAAAAAAYAAAAAAB4AAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAAAAAAAAAA4AAAAAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA'), c => c.charCodeAt(0));
+const isLand = (r, c) => (MASK[(r * MASK_COLS + c) >> 3] >> (7 - ((r * MASK_COLS + c) & 7))) & 1;
+// name|lat|lon|other names. A leading ! means the name itself is too ambiguous to match (Georgia, Jordan, Chad).
+const COUNTRIES = `United States|39|-98|US,U.S.,USA,America,American,Americans,Washington,White House,Pentagon,Congress,New York,California,Texas,Florida,Chicago,Los Angeles
+Canada|56|-106|Canadian,Ottawa,Toronto,Montreal,Vancouver
+Mexico|23|-102|Mexican,Mexico City
+Brazil|-10|-52|Brazilian,Brasília,Brasilia,Rio de Janeiro,São Paulo,Sao Paulo
+Argentina|-34|-64|Argentine,Argentinian,Buenos Aires
+Chile|-30|-71|Chilean,Santiago
+Peru|-10|-76|Peruvian,Lima
+Colombia|4|-73|Colombian,Bogotá,Bogota
+Venezuela|7|-66|Venezuelan,Caracas
+Ecuador|-1.5|-78|Ecuadorian,Quito
+Bolivia|-17|-65|Bolivian
+Cuba|21.5|-79|Cuban,Havana
+Haiti|19|-72.5|Haitian,Port-au-Prince
+Panama|8.5|-80|Panamanian
+Guatemala|15.5|-90|Guatemalan
+Honduras|15|-86.5|Honduran
+Nicaragua|12.8|-85|Nicaraguan
+El Salvador|13.7|-89|Salvadoran
+Dominican Republic|19|-70.5|Dominican
+Jamaica|18.1|-77.3|Jamaican
+Puerto Rico|18.2|-66.5|Puerto Rican
+Greenland|72|-40|Nuuk
+Iceland|65|-18|Icelandic,Reykjavik
+United Kingdom|54|-2|UK,U.K.,Britain,British,England,Scotland,Scottish,Wales,Welsh,London,Downing Street
+Ireland|53.2|-8|Irish,Dublin
+France|46.5|2.5|French,Paris
+Germany|51|10|German,Berlin
+Spain|40|-4|Spanish,Madrid,Barcelona
+Portugal|39.5|-8|Portuguese,Lisbon
+Italy|42.8|12.5|Italian,Rome,Milan
+Vatican|41.9|12.45|Pope
+European Union|50.8|4.4|EU,E.U.,European Commission,Brussels
+Netherlands|52.2|5.5|Dutch,Amsterdam,The Hague
+Belgium|50.6|4.6|Belgian
+Switzerland|46.8|8.2|Swiss,Geneva,Zurich
+Austria|47.5|14.5|Austrian,Vienna
+Poland|52|19|Polish,Warsaw
+Czech Republic|49.8|15.5|Czech,Prague
+Slovakia|48.7|19.5|Slovak,Bratislava
+Hungary|47.2|19.5|Hungarian,Budapest
+Romania|46|25|Romanian,Bucharest
+Bulgaria|42.7|25.5|Bulgarian,Sofia
+Greece|39|22|Greek,Athens
+Serbia|44|21|Serbian,Belgrade
+Croatia|45.1|15.2|Croatian,Zagreb
+Bosnia|44|17.8|Bosnian,Sarajevo
+Kosovo|42.6|20.9|Pristina
+Albania|41|20|Albanian,Tirana
+Moldova|47|28.5|Moldovan,Chisinau
+Ukraine|49|32|Ukrainian,Ukrainians,Kyiv,Kiev,Kharkiv,Odesa,Odessa,Donbas,Crimea
+Belarus|53.7|28|Belarusian,Minsk
+Russia|60|90|Russian,Russians,Moscow,Kremlin,Siberia,St Petersburg
+Lithuania|55.2|23.9|Lithuanian,Vilnius
+Latvia|56.9|24.6|Latvian,Riga
+Estonia|58.6|25|Estonian,Tallinn
+Finland|64|26|Finnish,Helsinki
+Sweden|62|15|Swedish,Stockholm
+Norway|62|10|Norwegian,Oslo
+Denmark|56|10|Danish,Copenhagen
+Turkey|39|35|Turkish,Türkiye,Turkiye,Ankara,Istanbul
+!Georgia|42.3|43.4|Tbilisi
+Armenia|40.1|45|Armenian,Yerevan
+Azerbaijan|40.3|47.7|Azerbaijani,Baku
+Kazakhstan|48|67|Kazakh,Astana,Almaty
+Uzbekistan|41.4|64.6|Uzbek,Tashkent
+Afghanistan|34|66|Afghan,Kabul,Taliban
+Pakistan|30|70|Pakistani,Islamabad,Karachi,Lahore
+India|22|79|Indian,New Delhi,Delhi,Mumbai,Kolkata,Bengaluru,Bangalore,Kashmir
+Bangladesh|23.7|90.3|Bangladeshi,Dhaka
+Sri Lanka|7.8|80.7|Sri Lankan,Colombo
+Nepal|28.3|84|Nepali,Nepalese,Kathmandu
+China|35|103|Chinese,Beijing,Shanghai,Xinjiang,Tibet
+Taiwan|23.7|121|Taiwanese,Taipei
+Hong Kong|22.3|114.2|
+Mongolia|46.8|103|Mongolian,Ulaanbaatar
+North Korea|40|127|North Korean,Pyongyang
+South Korea|36.5|127.8|South Korean,Seoul,Korean
+Japan|36.5|138|Japanese,Tokyo,Osaka
+Philippines|12.5|122|Philippine,Filipino,Manila
+Vietnam|16|106|Vietnamese,Hanoi,Ho Chi Minh City
+Thailand|15|101|Thai,Bangkok
+Myanmar|21|96|Burma,Burmese,Yangon
+Cambodia|12.6|105|Cambodian,Phnom Penh
+Laos|19|102.5|Laotian,Vientiane
+Malaysia|4|102|Malaysian,Kuala Lumpur
+Singapore|1.35|103.8|Singaporean
+Indonesia|-2.5|118|Indonesian,Jakarta,Bali
+Australia|-25|134|Australian,Canberra,Sydney,Melbourne,Brisbane
+New Zealand|-41.5|172.5|Auckland,Wellington
+Papua New Guinea|-6.5|145|
+Fiji|-17.8|178|Fijian
+Saudi Arabia|24|45|Saudi,Riyadh
+Yemen|15.5|47.5|Yemeni,Houthi,Houthis,Sanaa
+Oman|21|57|Omani,Muscat
+United Arab Emirates|24|54|UAE,Emirati,Dubai,Abu Dhabi
+Qatar|25.3|51.2|Qatari,Doha
+Kuwait|29.3|47.6|Kuwaiti
+Bahrain|26|50.5|Bahraini
+Iraq|33|44|Iraqi,Baghdad
+Syria|35|38.5|Syrian,Damascus,Aleppo
+Lebanon|33.9|35.8|Lebanese,Beirut,Hezbollah
+Israel|31.9|35.1|Israeli,Israelis,Jerusalem,Tel Aviv
+Palestine|31.4|34.4|Gaza,Palestinian,Palestinians,West Bank,Hamas,Ramallah
+!Jordan|31|36.5|Jordanian,Amman
+Iran|32.5|54|Iranian,Tehran
+Egypt|26.5|30|Egyptian,Cairo
+Libya|27|17|Libyan,Tripoli
+Tunisia|34|9.5|Tunisian,Tunis
+Algeria|28|2.6|Algerian,Algiers
+Morocco|32|-6|Moroccan,Rabat,Casablanca
+South Sudan|7.5|30.5|Juba
+Sudan|15.5|30|Sudanese,Khartoum,Darfur
+Ethiopia|9|39.5|Ethiopian,Addis Ababa,Tigray
+Eritrea|15.2|39|Eritrean,Asmara
+Somalia|5.5|46|Somali,Mogadishu
+Kenya|0.2|37.9|Kenyan,Nairobi
+Uganda|1.3|32.4|Ugandan,Kampala
+Tanzania|-6.3|34.9|Tanzanian,Dar es Salaam
+Rwanda|-2|30|Rwandan,Kigali
+DR Congo|-3|23.6|Congo,Congolese,Kinshasa,Goma,DRC
+Nigeria|9|8|Nigerian,Abuja,Lagos
+Ghana|7.9|-1|Ghanaian,Accra
+Senegal|14.5|-14.5|Senegalese,Dakar
+Mali|17.5|-4|Malian,Bamako
+Niger|17|9|Nigerien,Niamey
+Burkina Faso|12.3|-1.6|Ouagadougou
+!Chad|15|19|Chadian
+Cameroon|5.7|12.4|Cameroonian
+Ivory Coast|7.5|-5.5|Côte d'Ivoire,Ivorian,Abidjan
+Angola|-12|17.5|Angolan,Luanda
+Zambia|-13.5|28|Zambian,Lusaka
+Zimbabwe|-19|29.8|Zimbabwean,Harare
+Mozambique|-18|35.5|Mozambican,Maputo
+Madagascar|-19|46.7|Malagasy
+South Africa|-29|24.5|South African,Johannesburg,Cape Town,Pretoria
+Namibia|-22|17|Namibian
+Botswana|-22.3|24.7|`.split('\n').map(l => {
+  const [n, lat, lon, al] = l.split('|'), skip = n.startsWith('!'), name = n.replace('!', '');
+  const names = [...(skip ? [] : [name]), ...(al ? al.split(',') : [])].filter(Boolean).sort((a, b) => b.length - a.length);
+  const rx = new RegExp('(?<![A-Za-z])(' + names.map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![A-Za-z])');
+  return {name, lat:+lat, lon:+lon, rx};
+});
+// Finds the first country a headline mentions (case-sensitive, so "US" is not "us").
+function geoLocate(title){
+  let best = null, bi = Infinity;
+  for (const c of COUNTRIES){ const m = c.rx.exec(title); if (m && m.index < bi){ bi = m.index; best = c; } }
+  return best;
+}
+
+/* ---------- Zone types ---------- */
+const TYPES = {
+  clock: {
+    label:'Clock', defaults:{ places:'London, UK\nTokyo', weather:'yes', units:'f', home:'', h24:'yes' },
+    fields:[
+      {key:'places', label:'Other places, one per line. A city like “Tokyo” or “Paris, France”, or a time zone like “UTC”.', kind:'textarea'},
+      {key:'weather', label:'Weather for each place', kind:'select', options:[['yes','Show'],['no','Hide']]},
+      {key:'home', label:'Your city, for local weather beside the date (optional)', kind:'text'},
+      {key:'units', label:'Units', kind:'select', options:[['f','°F'],['c','°C']]},
+      {key:'h24', label:'24-hour clock', kind:'select', options:[['yes','Yes'],['no','No']]}
+    ],
+    hint:'Make the zone taller if your places don’t all fit.',
+    mount(bd, z){
+      bd.innerHTML = '<div class="clock"><div class="big"></div><div class="date"><span class="dt"></span><span class="hw"></span></div><div class="places"></div></div>';
+      const big = $('.big', bd), dt = $('.dt', bd), hw = $('.hw', bd), box = $('.places', bd), root = $('.clock', bd);
+      const h24 = z.opts.h24 !== 'no', units = z.opts.units || 'f', wx = z.opts.weather !== 'no';
+      const dayKey = new Intl.DateTimeFormat('en-CA', {year:'numeric', month:'2-digit', day:'2-digit'});
+      const un = [];
+      const lines = (z.opts.places || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8);
+      root.classList.toggle('has-pl', lines.length > 0);
+      let rows = [];
+      rows = lines.map(line => {
+        const el = document.createElement('div'); el.className = 'pl';
+        el.innerHTML = '<span class="pn"></span><span class="pd"></span><b class="pt">--:--</b><span class="pw"></span>';
+        box.appendChild(el);
+        const row = { el, n:$('.pn', el), d:$('.pd', el), t:$('.pt', el), w:$('.pw', el), fmt:null, dk:null };
+        row.n.textContent = line.split(',')[0];
+        const setTZ = tz => {
+          row.fmt = new Intl.DateTimeFormat('en-GB', {timeZone:tz, hour:'2-digit', minute:'2-digit', hour12:!h24});
+          row.dk = new Intl.DateTimeFormat('en-CA', {timeZone:tz, year:'numeric', month:'2-digit', day:'2-digit'});
+        };
+        let isZone = false;
+        if (/^(utc|gmt)$/i.test(line) || /^[A-Za-z]+\/[A-Za-z_]+/.test(line)){
+          try { setTZ(line.toUpperCase() === 'GMT' ? 'UTC' : line); isZone = true; row.n.textContent = line.split('/').pop().replace(/_/g, ' '); } catch(e){}
+        }
+        if (!isZone){
+          un.push(svcPlace(line, units, wx).use((d, err) => {
+            if (!d){ row.w.textContent = err && /not found/.test(err.message) ? 'Place not found' : ''; return; }
+            row.n.textContent = d.name; setTZ(d.tz);
+            row.w.textContent = d.cur ? `${Math.round(d.cur.temperature_2m)}°  ${WMO(d.cur.weather_code)}` : '';
+            if (rows.length) tick();
+          }));
+        }
+        return row;
+      });
+      const home = (z.opts.home || '').trim();
+      if (home) un.push(svcPlace(home, units, true).use(d => { hw.textContent = d && d.cur ? `${Math.round(d.cur.temperature_2m)}°  ${WMO(d.cur.weather_code)}` : ''; }));
+      function tick(){
+        const d = new Date();
+        let h = d.getHours(); if (!h24) h = h % 12 || 12;
+        big.innerHTML = `${pad(h)}:${pad(d.getMinutes())}<span class="sec">:${pad(d.getSeconds())}</span>`;
+        dt.textContent = d.toLocaleDateString(undefined, {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+        const today = dayKey.format(d);
+        rows.forEach(r => {
+          if (!r.fmt) return;
+          r.t.textContent = r.fmt.format(d);
+          const k = r.dk.format(d);
+          r.d.textContent = k > today ? 'Tomorrow' : k < today ? 'Yesterday' : '';
+        });
+      }
+      return { second: tick, destroy(){ un.forEach(f => f()); } };
+    }
+  },
+
+  news: {
+    label:'Newsfeed',
+    defaults:{ mode:'live', category:'world', sources:'top\nr/worldnews\nr/news\nfeeds.bbci.co.uk/news/world/rss.xml', refresh:'10', seconds:'10', qr:'yes', items:'' },
+    fields:[
+      {key:'mode', label:'Headlines come from', kind:'select', options:[['live','Live feeds'],['manual','Headlines I type']]},
+      {key:'category', label:'Category', kind:'select', options:CATS.map(c => [c.id, c.label]), when:z => z.opts.mode !== 'manual'},
+      {key:'sources', label:'Sources, one per line', kind:'textarea', when:z => z.opts.mode !== 'manual'},
+      {key:'refresh', label:'Check for new stories every (minutes, 2 or more)', kind:'number', when:z => z.opts.mode !== 'manual'},
+      {key:'qr', label:'QR code for the current story', kind:'select', options:[['yes','Show'],['no','Hide']], when:z => z.opts.mode !== 'manual'},
+      {key:'items', label:'Headlines, one per line', kind:'textarea', when:z => z.opts.mode === 'manual'},
+      {key:'seconds', label:'Seconds per headline', kind:'number'}
+    ],
+    hint:'The category applies to “top” and country lines. Source lines: “top” for the day’s biggest stories in that category, a country like “japan” or “top uk” for that country’s news, a category name like “science” to always include it, “r/name” for a subreddit’s top posts today, or any website or feed address, like theverge.com. Watch words, mute words and big-story alerts are under News settings.',
+    diag(z){
+      const c = LAST_CHECK[z.id];
+      const wrap = document.createElement('div'); wrap.className = 'diag';
+      const h = document.createElement('h3'); h.className = 'fh'; h.textContent = 'Source check'; wrap.appendChild(h);
+      const p = document.createElement('p'); p.className = 'hint';
+      p.textContent = (HOSTED ? 'Reading feeds through your Vercel relay. ' : 'Opened as a file, so feeds go through free public relays, which some sites block. The Vercel setup is more reliable. ') +
+        (c ? `Last checked at ${hhmm(c.at)}.` : 'No check has finished yet.');
+      wrap.appendChild(p);
+      if (c) c.report.forEach(r => {
+        const row = document.createElement('div'); row.className = 'diag-row' + (r.ok ? '' : ' bad');
+        const a = document.createElement('b'); a.textContent = (r.ok ? '✓ ' : '✕ ') + r.line;
+        const b = document.createElement('span');
+        let why = r.ok ? `${r.count} stories` + (r.error ? ` (showing saved stories: ${r.error})` : '') : r.error || 'no response';
+        if (!r.ok && /^r\//.test(r.name)) why += '. Reddit blocks most automated readers; the README explains how to connect a free Reddit app on Vercel.';
+        if (!r.ok && /feed/.test(r.error)) why += '. Try the site’s main address (for example .org instead of .com), or paste its RSS link.';
+        if (!r.ok && /free relays/.test(r.error)) why += '. This is the free relays failing, not the site. Running it from Vercel fixes this.';
+        b.textContent = why; row.append(a, b); wrap.appendChild(row);
+      });
+      return wrap;
+    },
+    mount(bd, z){
+      bd.innerHTML = '<div class="news"><div class="stamp"></div><a class="now" target="_blank" rel="noopener noreferrer"></a>' +
+        '<div class="nb"><div class="nl"><ol class="queue"></ol><div class="status"></div></div><div class="news-qr" hidden><canvas></canvas><span>Scan to read</span></div></div></div>';
+      const box = $('.news', bd), stamp = $('.stamp', bd), now = $('.now', bd), q = $('.queue', bd), status = $('.status', bd);
+      const qrBox = $('.news-qr', bd), qrCv = $('canvas', qrBox);
+      const manual = z.opts.mode === 'manual', wantQR = !manual && z.opts.qr !== 'no';
+      const per = Math.max(3, +z.opts.seconds || 10) * 1000;
+      let items = [], i = 0, start = performance.now(), shown = -1, dead = false, timer;
+      const show = () => {
+        const it = items[i]; if (!it) return;
+        const parts = [];
+        if (it.watch) parts.push(`Watching “${it.watch}”`);
+        if (it.source) parts.push(it.source);
+        if (it.date) parts.push(ago(it.date));
+        if (it.score) parts.push(`▲ ${it.score >= 1000 ? (it.score/1000).toFixed(1) + 'k' : it.score}`);
+        if (isHot(it)) parts.push(`◆ ${it.heat} sources`);
+        stamp.textContent = parts.join('  ·  ') || `${i+1} / ${items.length}`;
+        box.classList.toggle('hot', isHot(it)); box.classList.toggle('watch', !!it.watch);
+        if (it.link) now.href = it.link; else now.removeAttribute('href');
+        const hasQR = wantQR && drawQR(qrCv, it.link);
+        qrBox.hidden = !hasQR; box.classList.toggle('has-qr', hasQR);
+        q.innerHTML = '';
+        for (let k = 1; k <= Math.min(3, items.length - 1); k++){
+          const n = items[(i + k) % items.length], li = document.createElement('li');
+          if (isHot(n)) li.className = 'hot';
+          if (n.source){ const sp = document.createElement('span'); sp.className = 'src'; sp.textContent = n.source; li.appendChild(sp); }
+          li.appendChild(document.createTextNode(n.title)); q.appendChild(li);
+        }
+        shown = -1;
+      };
+      if (manual){
+        items = (z.opts.items || '').split('\n').map(s => s.trim()).filter(Boolean).map(title => ({title}));
+        if (!items.length){ bd.innerHTML = '<div class="empty-msg">Add headlines in edit mode.</div>'; return {}; }
+        show();
+      } else {
+        const lines = (z.opts.sources || '').split('\n').map(s => s.trim()).filter(Boolean);
+        if (!lines.length){ bd.innerHTML = '<div class="empty-msg">Add sources in edit mode.</div>'; return {}; }
+        const mins = Math.max(2, +z.opts.refresh || 10);
+        // Quick category switcher, shown with the other controls when the mouse moves
+        const pick = selectEl(CATS.map(c => [c.id, c.label]), z.opts.category || 'world');
+        pick.className = 'catpick'; pick.setAttribute('aria-label', 'News category');
+        pick.addEventListener('click', e => e.stopPropagation());
+        pick.addEventListener('change', () => { z.opts.category = pick.value; save(); render(); toast('Newsfeed: ' + catById(pick.value).label); });
+        bd.appendChild(pick);
+        now.textContent = 'Checking sources…';
+        const refresh = async () => {
+          const r = await loadSources(lines, mins, z.opts.category || 'world');
+          if (dead) return;
+          const list = prefsFilter(r.items);
+          if (list.length){
+            const cur = items[i] && items[i].title; items = list;
+            const j = items.findIndex(x => x.title === cur); i = j >= 0 ? j : 0; show();
+            NEWSBUS.set(z.id, items); checkAlerts(items);
+          }
+          else if (!items.length) now.textContent = r.items.length ? 'Every story is hidden by your mute words.' : 'Couldn’t reach any sources. Check the addresses in edit mode.';
+          LAST_CHECK[z.id] = {at:Date.now(), report:r.report};
+          status.textContent = `Updated ${hhmm(Date.now())}  ·  ${r.ok} of ${lines.length} sources working` + (r.failed.length ? '  ·  open settings to see why' : '');
+        };
+        refresh(); timer = setInterval(refresh, mins * 60000);
+      }
+      return {
+        frame(t){
+          if (!items.length) return;
+          if (t - start > per){ i = (i + 1) % items.length; start = t; show(); }
+          const txt = items[i].title;
+          const c = reduce ? txt.length : Math.min(txt.length, Math.floor((t - start) / 24));
+          if (c !== shown){ now.textContent = txt.slice(0, c); now.classList.toggle('typing', c < txt.length); shown = c; }
+        },
+        destroy(){ dead = true; clearInterval(timer); NEWSBUS.drop(z.id); }
+      };
+    }
+  },
+
+  map: {
+    label:'World map', defaults:{ news:'yes', quakes:'yes', iss:'yes' },
+    fields:[
+      {key:'news', label:'Headline locations', kind:'select', options:[['yes','Show'],['no','Hide']]},
+      {key:'quakes', label:'Earthquakes (last 24 hours)', kind:'select', options:[['yes','Show'],['no','Hide']]},
+      {key:'iss', label:'Space station track', kind:'select', options:[['yes','Show'],['no','Hide']]}
+    ],
+    hint:'Headline locations come from the newsfeed zones and the ticker. Land in darkness is shown dimmer.',
+    mount(bd, z){
+      bd.classList.add('bd-art');
+      const cv = document.createElement('canvas'); bd.appendChild(cv);
+      const cap = document.createElement('a'); cap.className = 'map-cap'; cap.target = '_blank'; cap.rel = 'noopener noreferrer'; bd.appendChild(cap);
+      const leg = document.createElement('div'); leg.className = 'map-legend'; bd.appendChild(leg);
+      const ctx = cv.getContext('2d'); let w = 0, h = 0, dpr = 1, base = null, baseKey = '';
+      const ro = new ResizeObserver(() => {
+        dpr = 1; // a dot map doesn't need retina resolution, and it's much cheaper to draw
+        w = bd.clientWidth; h = bd.clientHeight;
+        cv.width = Math.max(1, w * dpr); cv.height = Math.max(1, h * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); baseKey = '';
+      });
+      ro.observe(bd);
+      const un = []; let quakes = [], iss = null, marks = [], sel = 0, lastCap = 0;
+      const L = [];
+      if (z.opts.news !== 'no') L.push('◆ News');
+      if (z.opts.quakes !== 'no'){ L.push('○ Quakes'); un.push(svcQuakes().use(d => { quakes = (d || []).filter(q => Date.now() - q.time < 864e5); })); }
+      if (z.opts.iss !== 'no'){ L.push('◇ ISS'); un.push(svcISS().use(d => { iss = d; })); }
+      leg.textContent = L.join('     ');
+      const recompute = () => {
+        const m = {};
+        NEWSBUS.all().forEach(it => {
+          const c = geoLocate(it.title); if (!c) return;
+          const k = m[c.name] || (m[c.name] = {...c, count:0, hot:false, items:[]});
+          k.count++; k.hot = k.hot || isHot(it); k.items.push(it);
+        });
+        marks = Object.values(m).sort((a, b) => b.count - a.count);
+        lastCap = 0;
+      };
+      if (z.opts.news !== 'no'){ NEWSBUS.subs.add(recompute); recompute(); }
+      const geom = () => {
+        const ar = 360 / 140, pw = Math.min(w * .96, (h - 30) * ar), ph = pw / ar;
+        return { ox:(w - pw) / 2, oy:Math.max(4, (h - ph) / 2 - 6), pw, ph };
+      };
+      const proj = (g, lat, lon) => [g.ox + (lon + 180) / 360 * g.pw, g.oy + (81.25 - lat) / 140 * g.ph];
+      const drawBase = g => {
+        // Land as a dot grid; land on the night side of Earth is dimmer.
+        base = document.createElement('canvas'); base.width = Math.max(1, w * dpr); base.height = Math.max(1, h * dpr);
+        const b = base.getContext('2d'), cw = g.pw / MASK_COLS; b.scale(dpr, dpr);
+        const now = new Date(), doy = (Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - Date.UTC(now.getUTCFullYear(), 0, 0)) / 864e5;
+        const dec = -23.44 * Math.cos(2 * Math.PI / 365 * (doy + 10)) * Math.PI / 180;
+        const sslon = (12 - (now.getUTCHours() + now.getUTCMinutes() / 60)) * 15;
+        b.strokeStyle = rgba(C.accent, .07); b.lineWidth = 1;
+        for (let lon = -180; lon <= 180; lon += 30){ const [x] = proj(g, 0, lon); b.beginPath(); b.moveTo(x, g.oy); b.lineTo(x, g.oy + g.ph); b.stroke(); }
+        for (let lat = -30; lat <= 60; lat += 30){ const [, y] = proj(g, lat, 0); b.beginPath(); b.moveTo(g.ox, y); b.lineTo(g.ox + g.pw, y); b.stroke(); }
+        for (let r = 0; r < MASK_ROWS; r++) for (let c = 0; c < MASK_COLS; c++){
+          if (!isLand(r, c)) continue;
+          const lat = 80 - r * 2.5, lon = -178.75 + c * 2.5, la = lat * Math.PI / 180;
+          const day = Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos((lon - sslon) * Math.PI / 180) > 0;
+          const [x, y] = proj(g, lat, lon);
+          b.fillStyle = rgba(C.accent, day ? .55 : .2);
+          b.beginPath(); b.arc(x, y, Math.max(.8, cw * .3), 0, Math.PI * 2); b.fill();
+        }
+      };
+      return {
+        frame(t){
+          if (!w || !h) return;
+          const g = geom(), key = `${w}x${h}${C.accent}${Math.floor(Date.now() / 6e5)}`;
+          if (key !== baseKey){ drawBase(g); baseKey = key; }
+          ctx.clearRect(0, 0, w, h); ctx.drawImage(base, 0, 0, w, h);
+          const cw = g.pw / MASK_COLS, fs = clamp(cw * 4.2, 10, 18);
+          ctx.font = `500 ${fs}px "Saira Semi Condensed", sans-serif`;
+          // earthquakes
+          quakes.forEach(q => {
+            const [x, y] = proj(g, q.lat, q.lon), big = q.mag >= 5, r = cw * Math.max(.6, q.mag - 2) * .8;
+            ctx.strokeStyle = big ? rgba(C.warn, .85) : rgba(C.text, .35); ctx.lineWidth = big ? 1.5 : 1;
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+            if (big && Date.now() - q.time < 6 * 36e5 && !calm()){
+              const p = (t / 2200) % 1; ctx.strokeStyle = rgba(C.warn, (1 - p) * .6);
+              ctx.beginPath(); ctx.arc(x, y, r * (1 + p * 2), 0, Math.PI * 2); ctx.stroke();
+            }
+          });
+          // news markers
+          if (Date.now() - lastCap > 8000 && marks.length){
+            sel = (sel + 1) % Math.min(marks.length, 8); lastCap = Date.now();
+            const m = marks[sel], it = m.items[0];
+            cap.innerHTML = ''; const b = document.createElement('b'); b.textContent = m.name;
+            cap.append(b, document.createTextNode(it.title));
+            if (it.link) cap.href = it.link; else cap.removeAttribute('href');
+            cap.classList.toggle('hot', m.hot);
+          } else if (!marks.length && z.opts.news !== 'no' && cap.textContent === ''){
+            cap.textContent = 'Headline locations appear here once a newsfeed or the ticker has stories.';
+          }
+          marks.forEach((m, k) => {
+            const [x, y] = proj(g, m.lat, m.lon), col = m.hot ? C.warn : C.accent;
+            const r = cw * (1 + Math.min(4, Math.sqrt(m.count)) * .7);
+            if (!calm()){
+              const p = (t / 1800 + k * .17) % 1; ctx.strokeStyle = rgba(col, (1 - p) * .7); ctx.lineWidth = 1;
+              ctx.beginPath(); ctx.arc(x, y, r * (1 + p * 2.2), 0, Math.PI * 2); ctx.stroke();
+            }
+            ctx.fillStyle = rgba(col, .35); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = C.hi; ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, cw * .45), 0, Math.PI * 2); ctx.fill();
+            if (k === sel){
+              const s = r * 2.2, l = s * .45; ctx.strokeStyle = C.hi; ctx.lineWidth = 1.5; ctx.beginPath();
+              [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(([sx, sy]) => { ctx.moveTo(x + sx * s, y + sy * (s - l)); ctx.lineTo(x + sx * s, y + sy * s); ctx.lineTo(x + sx * (s - l), y + sy * s); });
+              ctx.stroke();
+            }
+            if (k < 6 || k === sel){ ctx.fillStyle = rgba(C.text, k === sel ? 1 : .7); ctx.fillText(m.name, x + r + 6, y - r); }
+          });
+          // space station
+          if (iss){
+            ctx.strokeStyle = rgba(C.hi, .5); ctx.lineWidth = 1; ctx.setLineDash([2, 3]); ctx.beginPath();
+            let prev = null;
+            iss.trail.forEach(([la, lo]) => { const [x, y] = proj(g, la, lo); if (prev && Math.abs(lo - prev) < 180) ctx.lineTo(x, y); else ctx.moveTo(x, y); prev = lo; });
+            ctx.stroke(); ctx.setLineDash([]);
+            const [x, y] = proj(g, iss.lat, iss.lon);
+            ctx.fillStyle = rgba(C.accent, .25); ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = C.hi;
+            ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 6); ctx.lineTo(x - 6, y); ctx.closePath(); ctx.fill();
+            ctx.fillText('ISS', x + 10, y + 4);
+          }
+        },
+        destroy(){ ro.disconnect(); un.forEach(f => f()); NEWSBUS.subs.delete(recompute); }
+      };
+    }
+  },
+
+  weather: {
+    label:'Weather', defaults:{ place:'Portland, Oregon', units:'f' },
+    fields:[
+      {key:'place', label:'Place (city, plus state or country if needed)', kind:'text'},
+      {key:'units', label:'Units', kind:'select', options:[['f','°F and mph'],['c','°C and km/h']]}
+    ],
+    mount(bd, z){
+      bd.innerHTML = '<div class="rd wx"><div class="wx-top"><div class="rd-big"></div><div><div class="rd-sub"></div><div class="rd-txt"></div></div></div><div class="wx-days"></div><div class="status"></div></div>';
+      const big = $('.rd-big', bd), sub = $('.rd-sub', bd), txt = $('.rd-txt', bd), days = $('.wx-days', bd), st = $('.status', bd);
+      big.textContent = '--';
+      const un = svcWeather((z.opts.place || 'Portland').trim(), z.opts.units || 'f').use((d, err) => {
+        if (!d){ txt.textContent = err && /not found/.test(err.message) ? 'Couldn’t find that place. Check the name in edit mode.' : 'Weather unavailable. Retrying.'; return; }
+        const c = d.cur;
+        big.innerHTML = `${Math.round(c.temperature_2m)}<small>°</small>`;
+        sub.textContent = WMO(c.weather_code);
+        txt.textContent = `Feels ${Math.round(c.apparent_temperature)}°  ·  wind ${Math.round(c.wind_speed_10m)} ${d.wind}  ·  ${c.relative_humidity_2m}% humidity`;
+        days.innerHTML = '';
+        d.daily.time.forEach((day, k) => {
+          const el = document.createElement('div');
+          const n = k === 0 ? 'Today' : new Date(day + 'T12:00').toLocaleDateString(undefined, {weekday:'short'});
+          el.innerHTML = '<span></span><b></b><i></i>';
+          el.children[0].textContent = n;
+          el.children[1].textContent = `${Math.round(d.daily.temperature_2m_max[k])}° / ${Math.round(d.daily.temperature_2m_min[k])}°`;
+          el.children[2].textContent = WMO(d.daily.weather_code[k]) + (d.daily.precipitation_probability_max && d.daily.precipitation_probability_max[k] != null ? `  ${d.daily.precipitation_probability_max[k]}%` : '');
+          days.appendChild(el);
+        });
+        st.textContent = `${d.name}  ·  updated ${hhmm(Date.now())}`;
+      });
+      return { destroy: un };
+    }
+  },
+
+  quakes: {
+    label:'Earthquakes', defaults:{}, fields:[],
+    hint:'Magnitude 2.5 and up from the last 24 hours, from the US Geological Survey.',
+    mount(bd){
+      bd.innerHTML = '<div class="rd"><div class="rd-big"></div><div class="rd-sub"></div><ol class="rd-list"></ol></div>';
+      const big = $('.rd-big', bd), sub = $('.rd-sub', bd), list = $('.rd-list', bd);
+      big.textContent = '--';
+      const un = svcQuakes().use((d, err) => {
+        if (!d){ sub.textContent = 'Earthquake data unavailable. Retrying.'; return; }
+        const day = d.filter(q => Date.now() - q.time < 864e5);
+        if (!day.length){ big.textContent = '0'; sub.textContent = 'No quakes above 2.5 in the last day'; list.innerHTML = ''; return; }
+        const top = day.reduce((a, b) => b.mag > a.mag ? b : a);
+        big.innerHTML = `M${top.mag.toFixed(1)}<small>${ago(top.time)}</small>`;
+        big.classList.toggle('warn', top.mag >= 5);
+        sub.textContent = `${top.place}  ·  ${day.length} ${day.length === 1 ? 'quake' : 'quakes'} today`;
+        list.innerHTML = '';
+        [...day].sort((a, b) => b.time - a.time).slice(0, 5).forEach(q => {
+          const li = document.createElement('li'); li.innerHTML = '<span></span><b></b>';
+          li.children[0].textContent = q.place; li.children[1].textContent = `M${q.mag.toFixed(1)}  ${hhmm(q.time)}`;
+          if (q.mag >= 5) li.className = 'warn'; list.appendChild(li);
+        });
+      });
+      return { destroy: un };
+    }
+  },
+
+  launches: {
+    label:'Rocket launches', defaults:{}, fields:[],
+    hint:'Upcoming launches worldwide, from The Space Devs. Times are your local time.',
+    mount(bd){
+      bd.innerHTML = '<div class="rd"><div class="rd-txt nm"></div><div class="rd-big"></div><div class="rd-sub"></div><ol class="rd-list"></ol></div>';
+      const nm = $('.nm', bd), big = $('.rd-big', bd), sub = $('.rd-sub', bd), list = $('.rd-list', bd);
+      let next = null;
+      big.textContent = 'T- --:--:--';
+      const un = svcLaunches().use((d, err) => {
+        if (!d){ nm.textContent = 'Launch schedule unavailable. Retrying.'; return; }
+        const up = d.filter(l => l.net > Date.now() - 36e5);
+        next = up[0] || null;
+        if (!next){ nm.textContent = 'No upcoming launches listed'; return; }
+        nm.textContent = next.name;
+        sub.textContent = [next.provider, next.pad, next.status].filter(Boolean).join('  ·  ');
+        list.innerHTML = '';
+        up.slice(1, 5).forEach(l => {
+          const li = document.createElement('li'); li.innerHTML = '<span></span><b></b>';
+          li.children[0].textContent = l.name;
+          li.children[1].textContent = new Date(l.net).toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' ' + hhmm(l.net);
+          list.appendChild(li);
+        });
+      });
+      return {
+        second(){
+          if (!next) return;
+          let diff = next.net - Date.now(); const sign = diff < 0 ? 'T+ ' : 'T- '; diff = Math.abs(diff);
+          const d = Math.floor(diff / 864e5), h = Math.floor(diff / 36e5) % 24, m = Math.floor(diff / 6e4) % 60, s = Math.floor(diff / 1e3) % 60;
+          big.innerHTML = sign + (d ? `${d}<small>d</small> ` : '') + `${pad(h)}:${pad(m)}<span class="sec">:${pad(s)}</span>`;
+        },
+        destroy: un
+      };
+    }
+  },
+
+  spacewx: {
+    label:'Space weather', defaults:{}, fields:[],
+    hint:'Live geomagnetic activity (Kp index), solar wind speed and the latest solar flare, from NOAA’s Space Weather Prediction Center.',
+    mount(bd){
+      bd.innerHTML = '<div class="rd"><div class="rd-big"></div><div class="kp"></div><div class="rd-sub"></div><div class="rd-grid"><div><span>Solar wind</span><b class="sw">--</b></div><div><span>Latest flare</span><b class="fl">--</b></div></div></div>';
+      const big = $('.rd-big', bd), kpEl = $('.kp', bd), sub = $('.rd-sub', bd), sw = $('.sw', bd), fl = $('.fl', bd);
+      for (let k = 0; k < 9; k++) kpEl.appendChild(document.createElement('i'));
+      big.innerHTML = '--<small>Kp</small>';
+      const un = svcSpaceWx().use((d, err) => {
+        if (!d){ sub.textContent = 'Space weather unavailable. Retrying.'; return; }
+        if (d.kp != null){
+          big.innerHTML = `${d.kp.toFixed(1)}<small>Kp</small>`;
+          [...kpEl.children].forEach((el, k) => { el.className = k < Math.round(d.kp) ? (k >= 4 ? 'on st' : 'on') : ''; });
+          const g = d.kp >= 9 ? 'G5 extreme storm' : d.kp >= 8 ? 'G4 severe storm' : d.kp >= 7 ? 'G3 strong storm' : d.kp >= 6 ? 'G2 moderate storm' : d.kp >= 5 ? 'G1 minor storm' : d.kp >= 4 ? 'Active' : d.kp >= 3 ? 'Unsettled' : 'Quiet';
+          sub.textContent = g + (d.kp >= 5 ? '  ·  aurora possible at mid latitudes' : d.kp >= 4 ? '  ·  aurora possible at high latitudes' : '');
+          sub.classList.toggle('warn', d.kp >= 5);
+        }
+        sw.innerHTML = d.wind != null ? `${Math.round(d.wind)}<small> km/s</small>` : '--';
+        fl.textContent = d.flare || '--';
+        fl.classList.toggle('warn', /^X/.test(d.flare || ''));
+      });
+      return { destroy: un };
+    }
+  },
+
+  iss: {
+    label:'Space station', defaults:{}, fields:[],
+    hint:'Live position of the International Space Station, updated every 5 seconds.',
+    mount(bd){
+      bd.innerHTML = '<div class="rd"><div class="rd-grid"><div><span>Latitude</span><b class="la">--</b></div><div><span>Longitude</span><b class="lo">--</b></div><div><span>Altitude</span><b class="al">--</b></div><div><span>Speed</span><b class="ve">--</b></div></div><div class="rd-sub vis"></div></div>';
+      const la = $('.la', bd), lo = $('.lo', bd), al = $('.al', bd), ve = $('.ve', bd), vis = $('.vis', bd);
+      const un = svcISS().use((d, err) => {
+        if (!d){ vis.textContent = 'Tracking unavailable. Retrying.'; return; }
+        la.textContent = `${Math.abs(d.lat).toFixed(2)}° ${d.lat >= 0 ? 'N' : 'S'}`;
+        lo.textContent = `${Math.abs(d.lon).toFixed(2)}° ${d.lon >= 0 ? 'E' : 'W'}`;
+        al.innerHTML = `${Math.round(d.alt)}<small> km</small>`;
+        ve.innerHTML = `${Math.round(d.vel).toLocaleString()}<small> km/h</small>`;
+        vis.textContent = d.vis === 'eclipsed' ? 'In Earth’s shadow' : 'In sunlight';
+      });
+      return { destroy: un };
+    }
+  },
+
+  events: {
+    label:'Events calendar', defaults:{ calendars:'', days:'21' },
+    fields:[
+      {key:'calendars', label:'Calendar links (.ics or webcal://), one per line', kind:'textarea'},
+      {key:'days', label:'Show events in the next (days)', kind:'number'}
+    ],
+    hint:'Paste the public calendar link from a venue, promoter or your own Google Calendar (Settings → your calendar → “Public address in iCal format”).',
+    mount(bd, z){
+      const links = (z.opts.calendars || '').split('\n').map(s => s.trim()).filter(Boolean);
+      if (!links.length){ bd.innerHTML = '<div class="empty-msg">Paste calendar links from venues or promoters in edit mode.</div>'; return {}; }
+      bd.innerHTML = '<div class="rd"><ol class="ev-list"></ol><div class="status"></div></div>';
+      const list = $('.ev-list', bd), st = $('.status', bd);
+      const days = Math.max(1, +z.opts.days || 21);
+      const un = svcCalendar(links).use((d, err) => {
+        if (!d){ st.textContent = 'Couldn’t reach those calendars. Retrying.'; return; }
+        const from = new Date(); from.setHours(0, 0, 0, 0);
+        const up = d.filter(e => e.start >= from.getTime() && e.start < Date.now() + days * 864e5).sort((a, b) => a.start - b.start);
+        list.innerHTML = '';
+        if (!up.length){ st.textContent = `Nothing in the next ${days} days`; return; }
+        up.slice(0, 8).forEach(e => {
+          const li = document.createElement('li'), dt = new Date(e.start);
+          li.innerHTML = '<span class="ev-d"></span><span class="ev-t"></span><span class="ev-w"></span>';
+          li.children[0].textContent = dt.toLocaleDateString(undefined, {weekday:'short', month:'short', day:'numeric'}) + (e.allDay ? '' : '  ' + dt.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'}));
+          li.children[1].textContent = e.title; li.children[2].textContent = e.where;
+          list.appendChild(li);
+        });
+        st.textContent = `Updated ${hhmm(Date.now())}`;
+      });
+      return { destroy: un };
+    }
+  },
+
+  art: {
+    label:'Display', defaults:{ style:'orbits' },
+    fields:[{key:'style', label:'Style', kind:'select', options:[['orbits','Orbit plot'],['planet','Wireframe planet'],['sweep','Sensor sweep'],['starfield','Starfield']]}],
+    mount(bd, z){
+      bd.classList.add('bd-art');
+      const cv = document.createElement('canvas'); bd.appendChild(cv);
+      const ctx = cv.getContext('2d'); let w = 0, h = 0;
+      const ro = new ResizeObserver(() => {
+        const dpr = Math.min(1.25, devicePixelRatio || 1);
+        w = bd.clientWidth; h = bd.clientHeight;
+        cv.width = Math.max(1, w * dpr); cv.height = Math.max(1, h * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      });
+      ro.observe(bd);
+      const draw = ART[z.opts.style] || ART.orbits, st = {};
+      return { frame(t, dt){ if (w && h) draw(ctx, w, h, t, dt, st); }, destroy(){ ro.disconnect(); } };
+    }
+  },
+
+  telemetry: {
+    label:'Ship systems', defaults:{}, fields:[],
+    hint:'These readouts are simulated for atmosphere.',
+    mount(bd){
+      bd.innerHTML = '<div class="tele"></div><div class="tele-foot"><span>Thrust<b class="g"></b></span><span>Burn<b class="bt"></b></span></div>';
+      const box = $('.tele', bd), g = $('.g', bd), bt = $('.bt', bd);
+      const rows = [['Reactor output',.82],['Drive plume',.66],['Hull integrity',.97],['Life support',.91],['Reaction mass',.48]].map(([n, b]) => {
+        const el = document.createElement('div'); el.className = 'row';
+        el.innerHTML = '<span class="n"></span><span class="v"></span><span class="bar"><i></i></span>';
+        $('.n', el).textContent = n; box.appendChild(el);
+        return { b, v:b, el, vEl:$('.v', el), bar:$('i', el) };
+      });
+      return { second(){
+        rows.forEach(r => {
+          r.v = clamp(r.v + (Math.random() - .5) * .05 + (r.b - r.v) * .12, .05, 1);
+          r.bar.style.width = (r.v * 100).toFixed(1) + '%';
+          r.vEl.textContent = Math.round(r.v * 100) + '%';
+          r.el.classList.toggle('low', r.v < .4);
+        });
+        g.textContent = (0.3 + (Math.random() - .5) * .02).toFixed(2) + ' g';
+        const s = Math.floor((Date.now() - T0) / 1000);
+        bt.textContent = `${pad(Math.floor(s/3600))}:${pad(Math.floor(s/60)%60)}:${pad(s%60)}`;
+      }};
+    }
+  },
+
+  notes: {
+    label:'Notes', defaults:{ text:'Burn schedule nominal.\nAll hands, secure for maneuvering.\n\nEdit this zone to write your own notes.' },
+    fields:[{key:'text', label:'Text', kind:'textarea'}],
+    mount(bd, z){
+      const d = document.createElement('div'); d.className = 'notes';
+      d.textContent = z.opts.text || 'Write something in edit mode.'; bd.appendChild(d); return {};
+    }
+  },
+
+  countdown: {
+    label:'Countdown', defaults:{ label:'next burn', target:'' },
+    fields:[
+      {key:'label', label:'What you’re counting to', kind:'text'},
+      {key:'target', label:'Target time', kind:'datetime'}
+    ],
+    mount(bd, z){
+      bd.innerHTML = '<div class="clock"><div class="big"></div><div class="date"></div></div>';
+      const big = $('.big', bd), date = $('.date', bd);
+      return { second(){
+        const tgt = new Date(z.opts.target);
+        if (!z.opts.target || isNaN(tgt)){ big.textContent = '--:--:--'; date.textContent = 'Set a target time in edit mode'; return; }
+        let diff = tgt - Date.now(); const past = diff < 0; diff = Math.abs(diff);
+        const d = Math.floor(diff / 864e5), h = Math.floor(diff / 36e5) % 24, m = Math.floor(diff / 6e4) % 60, s = Math.floor(diff / 1e3) % 60;
+        big.innerHTML = (d ? `${d}<span class="u">d</span> ` : '') + `${pad(h)}:${pad(m)}<span class="sec">:${pad(s)}</span>`;
+        date.textContent = (past ? 'Since ' : 'Until ') + (z.opts.label || 'target');
+      }};
+    }
+  },
+
+  image: {
+    label:'Image', defaults:{ src:'', fit:'cover' },
+    fields:[
+      {key:'src', label:'Image from your computer', kind:'file'},
+      {key:'fit', label:'Fit', kind:'select', options:[['cover','Fill the zone'],['contain','Show whole image']]}
+    ],
+    mount(bd, z){
+      if (!z.opts.src){ bd.innerHTML = '<div class="empty-msg">Choose an image in edit mode.</div>'; return {}; }
+      const wrap = document.createElement('div'); wrap.className = 'img';
+      const img = new Image(); img.src = z.opts.src; img.alt = z.title || '';
+      img.style.objectFit = z.opts.fit === 'contain' ? 'contain' : 'cover';
+      wrap.appendChild(img); bd.appendChild(wrap); return {};
+    }
+  }
+};
+
+/* ---------- Generative art ---------- */
+const ART = {
+  orbits(ctx, w, h, t, dt, st){
+    ctx.clearRect(0, 0, w, h);
+    const cx = w/2, cy = h/2, k = .5, R = Math.min(w/2, h/2/k) * .9;
+    const fs = clamp(Math.min(w, h) * .03, 10, 20);
+    ctx.font = `400 ${fs}px "Saira Semi Condensed", sans-serif`;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = rgba(C.accent, .08);
+    ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(w, cy); ctx.moveTo(cx, 0); ctx.lineTo(cx, h); ctx.stroke();
+    // outer bearing ring with ticks
+    ctx.strokeStyle = rgba(C.accent, .3);
+    for (let a = 0; a < 360; a += 5){
+      const r = a * Math.PI / 180, L = a % 30 === 0 ? 10 : 4;
+      const x1 = cx + Math.cos(r) * R * .98, y1 = cy + Math.sin(r) * R * .98 * k;
+      const x2 = cx + Math.cos(r) * (R * .98 - L), y2 = cy + Math.sin(r) * (R * .98 - L) * k;
+      ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    const P = [['Mercury',.13,2],['Venus',.21,2.5],['Earth',.3,3],['Mars',.42,2.5],['Ceres',.58,2],['Jupiter',.86,5]];
+    const pos = P.map(([n, r, s], i) => {
+      ctx.strokeStyle = rgba(C.accent, n === 'Ceres' ? .12 : .22);
+      ctx.setLineDash(n === 'Ceres' ? [2, 4] : []);
+      ctx.beginPath(); ctx.ellipse(cx, cy, r * R, r * R * k, 0, 0, Math.PI * 2); ctx.stroke();
+      const a = i * 1.9 + t * .0000045 / Math.pow(r, 1.5);
+      return { n, s, x: cx + Math.cos(a) * r * R, y: cy + Math.sin(a) * r * R * k };
+    });
+    ctx.setLineDash([]);
+    // sun
+    const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * .09);
+    g.addColorStop(0, rgba(C.hi, .95)); g.addColorStop(.25, rgba(C.accent, .5)); g.addColorStop(1, rgba(C.accent, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * .09, 0, Math.PI * 2); ctx.fill();
+    // transfer trajectory Earth -> Ceres
+    const A = pos[2], B = pos[4];
+    const mx = (A.x + B.x) / 2, my = (A.y + B.y) / 2;
+    const ox = mx - cx, oy = my - cy, ol = Math.hypot(ox, oy) || 1;
+    const qx = mx + ox / ol * R * .22, qy = my + oy / ol * R * .22 * k;
+    ctx.strokeStyle = rgba(C.accent, .75); ctx.setLineDash([5, 5]);
+    ctx.beginPath(); ctx.moveTo(A.x, A.y); ctx.quadraticCurveTo(qx, qy, B.x, B.y); ctx.stroke(); ctx.setLineDash([]);
+    const p = (t * .00004) % 1, ip = 1 - p;
+    const sx = ip*ip*A.x + 2*ip*p*qx + p*p*B.x, sy = ip*ip*A.y + 2*ip*p*qy + p*p*B.y;
+    ctx.fillStyle = rgba(C.accent, .25); ctx.beginPath(); ctx.arc(sx, sy, 11, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.hi;
+    ctx.beginPath(); ctx.moveTo(sx, sy - 6); ctx.lineTo(sx + 5, sy); ctx.lineTo(sx, sy + 6); ctx.lineTo(sx - 5, sy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C.accent; ctx.fillText(`Transfer  ${Math.round(p * 100)}%`, sx + 10, sy - 8);
+    // planets
+    pos.forEach(o => {
+      ctx.fillStyle = o.n === 'Earth' ? C.hi : rgba(C.text, .85);
+      ctx.beginPath(); ctx.arc(o.x, o.y, o.s, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = rgba(C.text, .55); ctx.fillText(o.n, o.x + o.s + 5, o.y - o.s - 3);
+    });
+  },
+
+  planet(ctx, w, h, t){
+    ctx.clearRect(0, 0, w, h);
+    const cx = w/2, cy = h/2, R = Math.min(w, h) * .36, rot = t * .00012, tilt = .38;
+    const ct = Math.cos(tilt), stl = Math.sin(tilt);
+    const proj = (lat, lon) => {
+      const x = Math.cos(lat) * Math.sin(lon + rot), y = Math.sin(lat), z = Math.cos(lat) * Math.cos(lon + rot);
+      return [cx + x * R, cy - (y * ct - z * stl) * R, y * stl + z * ct];
+    };
+    const line = pts => {
+      for (let i = 1; i < pts.length; i++){
+        const a = pts[i-1], b = pts[i], front = a[2] > 0 && b[2] > 0;
+        ctx.strokeStyle = rgba(C.accent, front ? .7 : .1);
+        ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+      }
+    };
+    ctx.lineWidth = 1;
+    const D = Math.PI / 180;
+    for (let lat = -75; lat <= 75; lat += 15){ const pts = []; for (let lon = 0; lon <= 360; lon += 6) pts.push(proj(lat*D, lon*D)); line(pts); }
+    for (let lon = 0; lon < 360; lon += 20){ const pts = []; for (let lat = -90; lat <= 90; lat += 6) pts.push(proj(lat*D, lon*D)); line(pts); }
+    // ring
+    ctx.strokeStyle = rgba(C.hi, .35);
+    ctx.beginPath(); ctx.ellipse(cx, cy, R * 1.55, R * 1.55 * stl * .9, 0, 0, Math.PI * 2); ctx.stroke();
+    // limb glow
+    const g = ctx.createRadialGradient(cx, cy, R * .85, cx, cy, R * 1.15);
+    g.addColorStop(0, rgba(C.accent, 0)); g.addColorStop(.5, rgba(C.accent, .18)); g.addColorStop(1, rgba(C.accent, 0));
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, R * 1.15, 0, Math.PI * 2); ctx.fill();
+  },
+
+  sweep(ctx, w, h, t, dt, st){
+    ctx.clearRect(0, 0, w, h);
+    const cx = w/2, cy = h/2, R = Math.min(w, h) * .44, TAU = Math.PI * 2;
+    if (!st.b) st.b = Array.from({length:9}, () => ({a: Math.random() * TAU, r: .2 + Math.random() * .75}));
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 4; i++){ ctx.strokeStyle = rgba(C.accent, .16); ctx.beginPath(); ctx.arc(cx, cy, R * i / 4, 0, TAU); ctx.stroke(); }
+    for (let i = 0; i < 12; i++){ const a = i * TAU / 12; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); ctx.stroke(); }
+    const ang = (t * .0011) % TAU;
+    for (let i = 0; i < 40; i++){
+      const a = ang - i * .012;
+      ctx.strokeStyle = rgba(C.accent, .5 * (1 - i / 40));
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * R, cy + Math.sin(a) * R); ctx.stroke();
+    }
+    st.b.forEach(b => {
+      const since = ((ang - b.a) % TAU + TAU) % TAU;
+      const al = Math.max(0, 1 - since / (TAU * .7));
+      if (al <= 0) return;
+      const x = cx + Math.cos(b.a) * b.r * R, y = cy + Math.sin(b.a) * b.r * R;
+      ctx.fillStyle = rgba(C.accent, .3 * al); ctx.beginPath(); ctx.arc(x, y, 7, 0, TAU); ctx.fill();
+      ctx.fillStyle = rgba(C.hi, al); ctx.beginPath(); ctx.arc(x, y, 2.5, 0, TAU); ctx.fill();
+      if (since < .05) b.a += (Math.random() - .5) * .03;
+    });
+  },
+
+  starfield(ctx, w, h, t, dt, st){
+    ctx.clearRect(0, 0, w, h);
+    if (!st.s) st.s = Array.from({length:240}, () => ({x: Math.random()*2-1, y: Math.random()*2-1, z: Math.random()}));
+    const cx = w/2, cy = h/2, S = Math.max(w, h) * .18;
+    ctx.lineWidth = 1.2;
+    st.s.forEach(s => {
+      const pz = s.z; s.z -= dt * .00009;
+      if (s.z <= .03){ s.x = Math.random()*2-1; s.y = Math.random()*2-1; s.z = 1; return; }
+      const x = cx + s.x / s.z * S, y = cy + s.y / s.z * S, px = cx + s.x / pz * S, py = cy + s.y / pz * S;
+      if (x < 0 || x > w || y < 0 || y > h){ s.z = 1; s.x = Math.random()*2-1; s.y = Math.random()*2-1; return; }
+      ctx.strokeStyle = rgba(s.z < .3 ? C.hi : C.accent, Math.min(1, (1 - s.z) * 1.2));
+      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+    });
+  }
+};
+
+/* ---------- State ---------- */
+function defaults(){
+  return { palette:'earth', news:{...NEWS_DEFAULTS}, zones:[
+    {id:uid(), type:'clock',     title:'Ship time',       x:1,  y:1, w:3, h:2, opts:{...TYPES.clock.defaults}},
+    {id:uid(), type:'news',      title:'Newsfeed',        x:1,  y:3, w:3, h:4, opts:{...TYPES.news.defaults}},
+    {id:uid(), type:'weather',   title:'Local conditions',x:1,  y:7, w:3, h:2, opts:{...TYPES.weather.defaults}},
+    {id:uid(), type:'map',       title:'Situation map',   x:4,  y:1, w:6, h:5, opts:{...TYPES.map.defaults}},
+    {id:uid(), type:'launches',  title:'Launch schedule', x:4,  y:6, w:3, h:3, opts:{}},
+    {id:uid(), type:'quakes',    title:'Seismic',         x:7,  y:6, w:3, h:3, opts:{}},
+    {id:uid(), type:'spacewx',   title:'Space weather',   x:10, y:1, w:3, h:3, opts:{}},
+    {id:uid(), type:'iss',       title:'Station track',   x:10, y:4, w:3, h:2, opts:{}},
+    {id:uid(), type:'events',    title:'Local shows',     x:10, y:6, w:3, h:3, opts:{...TYPES.events.defaults}}
+  ]};
+}
+function load(){
+  try {
+    const p = JSON.parse(localStorage.getItem(KEY));
+    if (p && Array.isArray(p.zones)){
+      p.zones.forEach(z => { if (z.type === 'news' && !z.opts.mode) z.opts = {...TYPES.news.defaults, seconds:z.opts.seconds || '10'}; });
+      p.news = {...NEWS_DEFAULTS, ...(p.news || {})};
+      p.zones.forEach(z => {
+        if (z.type === 'clock' && z.opts.places === undefined){
+          const old = (z.opts.extra || '').split(',').map(x => x.trim()).filter(Boolean)
+            .map(x => /^(utc|gmt)$/i.test(x) ? 'UTC' : x.split('/').pop().replace(/_/g, ' '));
+          z.opts = {...TYPES.clock.defaults, h24:z.opts.h24 || 'yes', places:old.join('\n')};
+        }
+      });
+      return p;
+    }
+  } catch(e){}
+  return defaults();
+}
+function save(){
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch(e){ toast('Couldn’t save this change. If you added an image, try a smaller one.'); }
+}
+let state = load();
+
+/* ---------- Render ---------- */
+let live = [], editing = false, selId = null, firstRender = true;
+function render(){
+  live.forEach(l => l.destroy && l.destroy()); live = [];
+  grid.innerHTML = '';
+  document.querySelectorAll('.no-zones').forEach(n => n.remove());
+  if (!state.zones.length){
+    const m = document.createElement('div'); m.className = 'no-zones'; m.textContent = 'No zones yet. Move the mouse and choose Add zone.';
+    document.body.appendChild(m);
+  }
+  state.zones.forEach((z, i) => {
+    const t = TYPES[z.type] || TYPES.notes;
+    const el = document.createElement('section');
+    el.className = 'zone' + (z.id === selId ? ' sel' : '');
+    el.dataset.id = z.id; el.style.setProperty('--i', i);
+    el.style.gridColumn = `${z.x} / span ${z.w}`; el.style.gridRow = `${z.y} / span ${z.h}`;
+    el.innerHTML = '<div class="in"><header class="hd"><span class="t"></span><span class="rule"></span></header><div class="bd"></div></div>';
+    $('.t', el).textContent = z.title || t.label;
+    const bd = $('.bd', el);
+    live.push(t.mount(bd, z) || {});
+    el.addEventListener('click', () => { if (editing) openDrawer(z.id); });
+    el.addEventListener('keydown', e => { if (editing && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); openDrawer(z.id); } });
+    if (editing) el.tabIndex = 0;
+    grid.appendChild(el);
+  });
+  tickSecond();
+  if (firstRender){ firstRender = false; setTimeout(() => document.body.classList.remove('boot'), 2000); }
+}
+function tickSecond(){ live.forEach(l => l.second && l.second()); }
+
+// Animated zones redraw at 30 fps (4 fps in Light motion); only the ticker runs at full rate.
+let last = performance.now(), lastDraw = 0;
+const calm = () => reduce || state.motion === 'light';
+function loop(t){
+  const dt = Math.min(50, t - last); last = t;
+  tickerFrame(t, dt);
+  const every = reduce ? 1000 : state.motion === 'light' ? 250 : 33;
+  if (t - lastDraw >= every){ const fdt = Math.min(250, t - lastDraw); lastDraw = t; live.forEach(l => l.frame && l.frame(t, fdt)); }
+  requestAnimationFrame(loop);
+}
+setInterval(tickSecond, 1000);
+
+/* ---------- Editing ---------- */
+let rt;
+function commit(){ save(); clearTimeout(rt); rt = setTimeout(render, 220); }
+
+function field(label, input){
+  const w = document.createElement('label'); w.className = 'f';
+  const s = document.createElement('span'); s.textContent = label;
+  w.append(s, input); return w;
+}
+function selectEl(options, val){
+  const s = document.createElement('select');
+  options.forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = l; s.appendChild(o); });
+  s.value = val; return s;
+}
+
+function buildDrawer(z){
+  fieldsEl.innerHTML = '';
+  const t = TYPES[z.type];
+
+  const title = document.createElement('input'); title.value = z.title || '';
+  title.addEventListener('input', () => { z.title = title.value; commit(); });
+  fieldsEl.appendChild(field('Title', title));
+
+  const type = selectEl(Object.entries(TYPES).map(([k, v]) => [k, v.label]), z.type);
+  type.addEventListener('change', () => {
+    z.type = type.value; z.opts = {...TYPES[z.type].defaults};
+    if (z.type === 'countdown'){ const d = new Date(Date.now() + 864e5); d.setMinutes(0,0,0); z.opts.target = localInput(d); }
+    save(); render(); buildDrawer(z);
+  });
+  fieldsEl.appendChild(field('Shows', type));
+
+  const pos = document.createElement('div'); pos.className = 'pos';
+  const dims = [['x','Column',12],['y','Row',8],['w','Width',12],['h','Height',8]];
+  const inputs = {};
+  dims.forEach(([k, l, max]) => {
+    const i = document.createElement('input'); i.type = 'number'; i.min = 1; i.max = max; i.value = z[k];
+    i.addEventListener('change', () => {
+      z[k] = parseInt(i.value, 10) || 1;
+      z.x = clamp(z.x, 1, 12); z.y = clamp(z.y, 1, 8);
+      z.w = clamp(z.w, 1, 13 - z.x); z.h = clamp(z.h, 1, 9 - z.y);
+      Object.keys(inputs).forEach(q => inputs[q].value = z[q]);
+      save(); render();
+    });
+    inputs[k] = i; pos.appendChild(field(l, i));
+  });
+  fieldsEl.appendChild(pos);
+  const ph = document.createElement('p'); ph.className = 'hint';
+  ph.textContent = 'The screen is a 12 × 8 grid. Column and row set the top-left corner; width and height are in grid cells.';
+  fieldsEl.appendChild(ph);
+
+  t.fields.forEach(fd => {
+    if (fd.when && !fd.when(z)) return;
+    let inp;
+    if (fd.kind === 'textarea'){ inp = document.createElement('textarea'); inp.value = z.opts[fd.key] || ''; }
+    else if (fd.kind === 'select'){ inp = selectEl(fd.options, z.opts[fd.key] || fd.options[0][0]); }
+    else if (fd.kind === 'file'){
+      inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+      inp.addEventListener('change', () => {
+        const f = inp.files && inp.files[0]; if (!f) return;
+        const r = new FileReader();
+        r.onload = () => {
+          const img = new Image();
+          img.onload = () => {
+            const s = Math.min(1, 1600 / Math.max(img.width, img.height));
+            const c = document.createElement('canvas'); c.width = img.width * s; c.height = img.height * s;
+            c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+            z.opts.src = c.toDataURL('image/jpeg', .85); save(); render();
+          };
+          img.onerror = () => toast('That file couldn’t be read as an image.');
+          img.src = r.result;
+        };
+        r.readAsDataURL(f);
+      });
+      fieldsEl.appendChild(field(fd.label, inp)); return;
+    }
+    else { inp = document.createElement('input'); inp.type = fd.kind === 'datetime' ? 'datetime-local' : fd.kind === 'number' ? 'number' : 'text'; inp.value = z.opts[fd.key] || ''; if (fd.kind === 'number') inp.min = 2; }
+    inp.addEventListener(fd.kind === 'select' ? 'change' : 'input', () => { z.opts[fd.key] = inp.value; commit(); if (fd.key === 'mode') buildDrawer(z); });
+    fieldsEl.appendChild(field(fd.label, inp));
+  });
+  if (t.hint){ const p = document.createElement('p'); p.className = 'hint'; p.textContent = t.hint; fieldsEl.appendChild(p); }
+  if (t.diag && z.opts.mode !== 'manual') fieldsEl.appendChild(t.diag(z));
+}
+
+function markSel(){ grid.querySelectorAll('.zone').forEach(n => n.classList.toggle('sel', n.dataset.id === selId)); }
+function openDrawer(id){
+  const z = state.zones.find(q => q.id === id); if (!z) return;
+  selId = id; $('#drawerTitle').textContent = 'Zone settings'; $('#bDelete').hidden = false;
+  buildDrawer(z); drawer.classList.add('open'); markSel(); resetDelete();
+  setTimeout(() => { const f = fieldsEl.querySelector('input'); f && f.focus(); }, 50);
+}
+function closeDrawer(){ drawer.classList.remove('open'); selId = null; markSel(); }
+
+function setEditing(on){
+  editing = on; document.body.classList.toggle('editing', on);
+  $('#bEdit').textContent = on ? 'Done editing' : 'Edit layout';
+  $('#bEdit').classList.toggle('on', on);
+  if (!on) closeDrawer();
+  render(); wake();
+}
+
+/* ---------- Ticker band ---------- */
+const tk = {items:[], x:0, half:0, timer:null, paused:false, i:0, swapAt:0, gen:0};
+function tickerApply(){
+  const on = state.news.ticker !== 'off';
+  document.body.classList.toggle('ticker-on', on);
+  clearInterval(tk.timer); tk.timer = null; tk.gen++;
+  if (!on){ NEWSBUS.drop('ticker'); return; }
+  $('#tkLabel').textContent = catById(state.news.tickerCat).label;
+  const lines = (state.news.tickerSources || 'top').split('\n').map(s => s.trim()).filter(Boolean);
+  const gen = tk.gen;
+  const refresh = async () => {
+    const r = await loadSources(lines, 10, state.news.tickerCat || 'world');
+    if (gen !== tk.gen) return;
+    const list = prefsFilter(r.items).slice(0, 30);
+    if (list.length){ tk.items = list; buildTrack(); NEWSBUS.set('ticker', list); checkAlerts(list); }
+    else if (!tk.items.length) $('#tkTrack').textContent = 'Ticker sources aren’t responding. Check them under News settings.';
+  };
+  refresh(); tk.timer = setInterval(refresh, 10 * 60e3);
+}
+function buildTrack(){
+  const tr = $('#tkTrack'); tr.innerHTML = '';
+  const add = it => {
+    const a = document.createElement('a');
+    a.className = 'tk-item' + (isHot(it) ? ' hot' : '') + (it.watch ? ' watch' : '');
+    if (it.link){ a.href = it.link; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
+    if (it.source){ const s = document.createElement('span'); s.className = 'src'; s.textContent = it.source; a.appendChild(s); }
+    a.appendChild(document.createTextNode(it.title)); tr.appendChild(a);
+    const sep = document.createElement('span'); sep.className = 'tk-sep'; sep.textContent = '◆'; tr.appendChild(sep);
+  };
+  if (reduce){ add(tk.items[tk.i % tk.items.length]); tk.half = 0; tr.style.transform = ''; return; }
+  tk.items.forEach(add); tk.half = tr.scrollWidth; tk.items.forEach(add);
+  if (-tk.x >= tk.half) tk.x = 0;
+}
+function tickerFrame(t, dt){
+  if (state.news.ticker === 'off' || !tk.items.length) return;
+  if (reduce){ if (t > tk.swapAt){ tk.swapAt = t + 8000; tk.i++; buildTrack(); } return; }
+  if (!tk.half || tk.paused) return;
+  const speed = ({slow:45, normal:80, fast:130}[state.news.tickerSpeed] || 80) * innerHeight / 1000;
+  tk.x -= speed * dt / 1000;
+  if (-tk.x >= tk.half) tk.x += tk.half;
+  (tk.el || (tk.el = $('#tkTrack'))).style.transform = `translate3d(${tk.x.toFixed(1)}px,0,0)`;
+}
+$('#tkView').addEventListener('mouseenter', () => tk.paused = true);
+$('#tkView').addEventListener('mouseleave', () => tk.paused = false);
+
+/* ---------- News settings ---------- */
+let gt;
+function openNewsSettings(){
+  selId = null; markSel();
+  $('#drawerTitle').textContent = 'News settings'; $('#bDelete').hidden = true;
+  fieldsEl.innerHTML = '';
+  const n = state.news;
+  const changed = (key, val, ticker) => {
+    n[key] = val; save(); clearTimeout(gt);
+    gt = setTimeout(() => { if (ticker || key === 'watch' || key === 'mute' || key.startsWith('alert')) tickerApply(); render(); }, 500);
+  };
+  const add = (label, key, kind, opts, ticker) => {
+    let inp;
+    if (kind === 'select') inp = selectEl(opts, n[key]);
+    else if (kind === 'textarea'){ inp = document.createElement('textarea'); inp.value = n[key] || ''; inp.style.minHeight = '90px'; }
+    else { inp = document.createElement('input'); inp.type = kind; inp.value = n[key] || ''; if (kind === 'number'){ inp.min = 2; inp.max = 8; } }
+    inp.addEventListener(kind === 'select' ? 'change' : 'input', () => changed(key, inp.value, ticker));
+    fieldsEl.appendChild(field(label, inp));
+  };
+  const head = t => { const h = document.createElement('h3'); h.className = 'fh'; h.textContent = t; fieldsEl.appendChild(h); };
+  head('Watch and mute');
+  add('Watch words, comma separated. Matching stories move to the front and are marked.', 'watch', 'text');
+  add('Mute words, comma separated. Matching stories are hidden everywhere.', 'mute', 'text');
+  head('Big-story alerts');
+  add('Alert when several of your sources cover the same story', 'alert', 'select', [['on','On'],['off','Off']]);
+  add('Sources needed before it counts as big', 'alertMin', 'number');
+  head('Ticker');
+  add('Ticker along the bottom edge', 'ticker', 'select', [['on','Show'],['off','Hide']], true);
+  add('Category', 'tickerCat', 'select', CATS.map(c => [c.id, c.label]), true);
+  add('Sources, one per line (same format as the newsfeed)', 'tickerSources', 'textarea', null, true);
+  add('Speed', 'tickerSpeed', 'select', [['slow','Slow'],['normal','Normal'],['fast','Fast']], true);
+  const p = document.createElement('p'); p.className = 'hint';
+  p.textContent = 'Hover over the ticker to pause it, and click a story to open it.';
+  fieldsEl.appendChild(p);
+  drawer.classList.add('open');
+}
+
+/* ---------- Controls ---------- */
+function applyPalette(name){
+  C = PALETTES[name] || PALETTES.earth;
+  const r = document.documentElement.style;
+  Object.entries(C).forEach(([k, v]) => r.setProperty('--' + k, v));
+  r.setProperty('--glow', rgba(C.accent, .35));
+}
+
+let toastT;
+function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 3200); }
+
+$('#bEdit').addEventListener('click', () => setEditing(!editing));
+$('#bAdd').addEventListener('click', () => {
+  const z = {id:uid(), type:'notes', title:'New zone', x:1, y:1, w:3, h:2, opts:{text:''}};
+  state.zones.push(z); save();
+  if (!editing) setEditing(true); else render();
+  openDrawer(z.id);
+});
+const pal = $('#bPalette');
+pal.value = state.palette || 'earth';
+pal.addEventListener('change', () => { state.palette = pal.value; applyPalette(pal.value); save(); });
+
+function fullscreen(){
+  const el = document.documentElement;
+  if (document.fullscreenElement){ document.exitFullscreen && document.exitFullscreen(); return; }
+  const req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (!req){ toast('Use your browser’s full-screen key (F11) instead.'); return; }
+  Promise.resolve(req.call(el)).catch(() => toast('Full screen was blocked here. Open the artifact on its own page, or press F11.'));
+}
+$('#bFull').addEventListener('click', fullscreen);
+const mo = $('#bMotion');
+mo.value = state.motion || 'full'; document.body.classList.toggle('light', mo.value === 'light');
+mo.addEventListener('change', () => { state.motion = mo.value; document.body.classList.toggle('light', mo.value === 'light'); save(); });
+
+let resetArmed = false, resetT;
+$('#bReset').addEventListener('click', e => {
+  if (!resetArmed){ resetArmed = true; e.target.textContent = 'Click again to reset'; resetT = setTimeout(() => { resetArmed = false; e.target.textContent = 'Reset layout'; }, 3000); return; }
+  clearTimeout(resetT); resetArmed = false; e.target.textContent = 'Reset layout';
+  state = defaults(); pal.value = state.palette; applyPalette(state.palette); save(); closeDrawer(); render(); tickerApply(); toast('Layout reset');
+});
+
+let delArmed = false;
+function resetDelete(){ delArmed = false; $('#bDelete').textContent = 'Delete zone'; }
+$('#bDelete').addEventListener('click', () => {
+  if (!delArmed){ delArmed = true; $('#bDelete').textContent = 'Click again to delete'; return; }
+  state.zones = state.zones.filter(z => z.id !== selId); save(); closeDrawer(); render(); resetDelete(); toast('Zone deleted');
+});
+$('#bDone').addEventListener('click', closeDrawer);
+$('#bNews').addEventListener('click', openNewsSettings);
+
+addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (e.key === 'e' || e.key === 'E') setEditing(!editing);
+  else if (e.key === 'f' || e.key === 'F') fullscreen();
+  else if (e.key === 'Escape'){ if (drawer.classList.contains('open')) closeDrawer(); else if (editing) setEditing(false); }
+});
+
+let idleT;
+function wake(){
+  document.body.classList.add('show'); clearTimeout(idleT);
+  idleT = setTimeout(() => { if (!editing && !drawer.classList.contains('open')) document.body.classList.remove('show'); }, 3000);
+}
+['mousemove','mousedown','keydown','touchstart'].forEach(ev => addEventListener(ev, wake, {passive:true}));
+
+/* ---------- Boot ---------- */
+const gd = $('#guides'); for (let i = 0; i < 96; i++) gd.appendChild(document.createElement('i'));
+applyPalette(state.palette);
+render(); tickerApply(); wake();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
