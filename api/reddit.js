@@ -7,6 +7,8 @@ module.exports = async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const sub = String((req.query && req.query.sub) || '').replace(/[^A-Za-z0-9_]/g, '');
   const id = process.env.REDDIT_CLIENT_ID, secret = process.env.REDDIT_CLIENT_SECRET;
+  const t = ['hour','day','week','month','year','all'].includes(req.query.t) ? req.query.t : 'day';
+  const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
   if (!sub) return res.status(400).json({ error: 'Missing subreddit' });
   if (!id || !secret) return res.status(501).json({ error: 'Reddit app not connected' });
   try {
@@ -25,7 +27,7 @@ module.exports = async (req, res) => {
       token = j.access_token;
       expires = Date.now() + ((j.expires_in || 3600) - 60) * 1000;
     }
-    const r = await fetch(`https://oauth.reddit.com/r/${sub}/top?t=day&limit=20&raw_json=1`, {
+    const r = await fetch(`https://oauth.reddit.com/r/${sub}/top?t=${t}&limit=${limit}&raw_json=1`, {
       headers: { 'Authorization': 'Bearer ' + token, 'User-Agent': UA }
     });
     if (!r.ok) return res.status(r.status).json({ error: 'Reddit error ' + r.status });

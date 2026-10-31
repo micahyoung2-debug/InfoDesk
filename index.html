@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ops display</title>
+<title>Ops display · v11</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@300;400;500;600&family=Saira:wght@200;300;400&display=swap" rel="stylesheet">
@@ -32,12 +32,7 @@ body{
   font-family:"Saira Semi Condensed","Arial Narrow",system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
-body::after{
-  content:"";position:fixed;inset:0;pointer-events:none;z-index:15;
-  background:repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 3px);
-}
 body:not(.show):not(.editing){cursor:none}
-body.light::after{display:none}
 
 /* Grid */
 .grid,.guides{
@@ -53,16 +48,22 @@ body.light::after{display:none}
 .editing .guides{opacity:1}
 
 /* Zones */
+/* Panels: a 1px frame with two cut corners. No clip-path, and each zone is isolated
+   (contain) so an animating zone never forces the rest of the screen to repaint. */
 .zone{
-  --c:1.6vmin;
+  --c:1.6vmin; --fr:var(--line);
   position:relative;min-width:0;min-height:0;padding:1px;
-  background:var(--line);
-  clip-path:polygon(var(--c) 0,100% 0,100% calc(100% - var(--c)),calc(100% - var(--c)) 100%,0 100%,0 var(--c));
+  background:var(--fr);
+  contain:strict;
 }
+.zone::before,.zone::after{content:"";position:absolute;width:var(--c);height:var(--c);z-index:3;pointer-events:none}
+.zone::before{left:0;top:0;background:linear-gradient(135deg,var(--bg) calc(50% - .75px),var(--fr) calc(50% - .75px),var(--fr) calc(50% + .75px),transparent calc(50% + .75px))}
+.zone::after{right:0;bottom:0;background:linear-gradient(-45deg,var(--bg) calc(50% - .75px),var(--fr) calc(50% - .75px),var(--fr) calc(50% + .75px),transparent calc(50% + .75px))}
 .zone .in{
   position:relative;height:100%;display:flex;flex-direction:column;
-  background:linear-gradient(180deg, color-mix(in srgb, var(--panel) 88%, var(--accent)) 0%, var(--panel) 30%, color-mix(in srgb, var(--panel) 80%, var(--bg)) 100%);
-  clip-path:polygon(calc(var(--c) - .5px) 0,100% 0,100% calc(100% - var(--c) + .5px),calc(100% - var(--c) + .5px) 100%,0 100%,0 calc(var(--c) - .5px));
+  background:
+    repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 1px, transparent 1px 3px),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel) 88%, var(--accent)) 0%, var(--panel) 30%, color-mix(in srgb, var(--panel) 80%, var(--bg)) 100%);
 }
 .zone .in::before{ /* bright corner bracket */
   content:"";position:absolute;right:0;top:0;width:3.2vmin;height:2px;background:var(--accent);
@@ -82,8 +83,8 @@ body.light::after{display:none}
 .bd-art{padding:0}
 .bd-art canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 
-.editing .zone{background:color-mix(in srgb, var(--accent) 55%, var(--line));cursor:pointer}
-.editing .zone.sel{background:var(--hi)}
+.editing .zone{--fr:color-mix(in srgb, var(--accent) 55%, var(--line));cursor:pointer}
+.editing .zone.sel{--fr:var(--hi)}
 .editing .zone .in::after{
   content:"Click to edit";position:absolute;right:1.6vmin;bottom:1.2vmin;
   font:500 12px/1 "Saira Semi Condensed",sans-serif;letter-spacing:.1em;
@@ -188,6 +189,9 @@ select{background:var(--panel)}
 .hint{font-size:13px;color:var(--dim);line-height:1.45;margin:0}
 .drawer-foot{display:flex;justify-content:space-between;gap:8px;padding:14px 20px;border-top:1px solid var(--line)}
 
+.fps{position:fixed;left:12px;top:calc(env(safe-area-inset-top,0px) + 12px);z-index:50;background:var(--panel);border:1px solid var(--accent);
+  color:var(--hi);font:500 14px/1.4 "Saira Semi Condensed",sans-serif;padding:8px 12px;font-variant-numeric:tabular-nums;white-space:pre}
+.fps[hidden]{display:none}
 .toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);left:50%;transform:translateX(-50%);z-index:40;
   background:var(--panel);border:1px solid var(--accent);color:var(--hi);padding:10px 16px;font-size:15px;
   opacity:0;transition:opacity .3s;pointer-events:none}
@@ -196,16 +200,58 @@ select{background:var(--panel)}
 
 .clock .date{display:flex;flex-wrap:wrap;gap:0 1.2em}
 .clock .hw{color:var(--text);letter-spacing:.04em;text-transform:none}
-.clock.has-pl{justify-content:flex-start;gap:1.6cqh;padding-top:1cqh}
-.clock.has-pl .big{font-size:min(30cqh,16cqw)}
-.clock.has-pl .date{font-size:min(7cqh,4cqw)}
-.places{display:flex;flex-direction:column;margin-top:auto;font-size:max(10px,min(7cqh,4.6cqw));min-height:0;overflow:hidden}
-.pl{display:grid;grid-template-columns:1fr auto auto;grid-template-areas:"n t w" "d t w";column-gap:4cqw;align-items:baseline;border-top:1px solid var(--line);padding:.35em 0}
+.clock.has-pl{justify-content:flex-start;gap:1vmin;padding-top:.6vmin}
+.clock.has-pl .big{font-size:min(7.5vmin,16cqw)}
+.clock.has-pl .date{font-size:max(11px,min(1.7vmin,4cqw))}
+.places{display:grid;grid-template-columns:1fr 1fr;gap:.6vmin 1.8vmin;font-size:max(11px,1.55vmin);margin-top:.4vmin}
+@container (max-width: 240px){ .places{grid-template-columns:1fr} }
+.pl{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n t" "w d";gap:.1em .6em;align-items:baseline;border-top:1px solid var(--line);padding:.45em 0 .1em;min-width:0}
 .pn{grid-area:n;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pd{grid-area:d;color:var(--dim);font-size:.75em}
-.pd:empty{display:none}
-.pt{grid-area:t;font-weight:300;color:var(--hi);font-variant-numeric:tabular-nums;font-size:1.25em}
-.pw{grid-area:w;color:var(--accent);white-space:nowrap;min-width:0}
+.pt{grid-area:t;font-weight:300;color:var(--hi);font-variant-numeric:tabular-nums;font-size:1.35em;line-height:1}
+.pw{grid-area:w;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:.85em;min-height:1.3em}
+.pd{grid-area:d;color:var(--dim);font-size:.75em;text-align:right}
+/* Links inside readouts */
+.rd a{color:inherit;text-decoration:none}
+.rd a[href]:hover{text-decoration:underline;text-decoration-color:var(--accent);color:var(--hi)}
+.rd-list li a{overflow:hidden;text-overflow:ellipsis}
+.editing .rd a,.editing .gcap{pointer-events:none}
+/* Weather views */
+.wxv{height:100%}
+.wxg-h{font-size:max(10px,min(5.2cqh,4cqw));letter-spacing:.06em;padding-right:9em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wxg-top{display:flex;align-items:baseline;gap:4cqw;color:inherit;text-decoration:none;min-width:0}
+.wxg-top[href]:hover .rd-txt{text-decoration:underline;text-decoration-color:var(--accent)}
+.wxg .rd-big{font-size:min(24cqh,13cqw);flex:none}
+.wxg .rd-txt{color:var(--hi);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.wxg .rd-list{margin-top:0}
+.wxg .status{margin-top:auto}
+@container (max-height: 230px){ .wxg .rd-list li:nth-child(n+3){display:none} }
+@container (max-height: 170px){ .wxg .rd-list{display:none} }
+/* Quotes under the map */
+.map-quote{position:absolute;left:2.2vmin;right:2.2vmin;margin:0;height:5.6em;display:flex;flex-direction:column;justify-content:flex-end;gap:.35em;
+  padding-left:1.1em;border-left:2px solid var(--accent);pointer-events:none;
+  font:300 max(12px,min(4.2cqh,2.3cqw))/1.3 "Saira",sans-serif;color:var(--hi);transition:opacity .7s ease}
+.map-quote blockquote{margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty;max-width:70em}
+.map-quote blockquote:not(:empty)::before{content:"“"} .map-quote blockquote:not(:empty)::after{content:"”"}
+.map-quote figcaption{font:400 .8em/1.2 "Saira Semi Condensed",sans-serif;color:var(--accent);letter-spacing:.06em}
+.map-quote.fade{opacity:0}
+.map-quote[hidden]{display:none}
+/* Map hover card */
+.map-tip{position:absolute;z-index:4;display:flex;flex-direction:column;gap:.25em;padding:.7em 1em;pointer-events:none;
+  background:var(--panel);border:1px solid var(--accent);font-size:max(12px,1.4vmin);color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+.map-tip b{color:var(--hi);font-weight:500;letter-spacing:.04em}
+.map-tip[hidden]{display:none}
+/* Image feed */
+.gal{position:absolute;inset:0 2.2vmin 1.6vmin;overflow:hidden;background:var(--bg);box-shadow:inset 0 0 0 1px var(--line)}
+.gal img{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity 1.4s ease}
+.gal img.on{opacity:1}
+.gal::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px)}
+.gcap{position:absolute;left:0;right:0;bottom:0;z-index:1;padding:4cqh 1em 1.4cqh;background:linear-gradient(transparent,rgba(0,0,0,.8));
+  color:var(--hi);font-size:max(11px,min(5.4cqh,3.6cqw));text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gcap b{color:var(--accent);font-weight:500;margin-right:.8em}
+.gcap[href]:hover{text-decoration:underline}
+.gmsg{position:absolute;inset:0;z-index:1;display:grid;place-items:center;text-align:center;padding:1.2em;color:var(--dim);font-size:max(11px,min(5.5cqh,4.6cqw))}
+.gmsg[hidden]{display:none}
+
 /* News extras */
 .diag{display:flex;flex-direction:column;gap:10px;margin-top:6px}
 .diag-row{display:flex;flex-direction:column;gap:3px;font-size:13px;line-height:1.4;border-left:2px solid var(--accent);padding-left:10px}
@@ -226,7 +272,7 @@ body.ticker-on{--tick:5.8vmin}
 .editing .map-cap{pointer-events:none}
 
 /* Ticker */
-.ticker{position:fixed;left:1.4vmin;right:1.4vmin;bottom:calc(env(safe-area-inset-bottom,0px) + 1.4vmin);height:4.6vmin;display:none;z-index:5;
+.ticker{contain:layout paint;position:fixed;left:1.4vmin;right:1.4vmin;bottom:calc(env(safe-area-inset-bottom,0px) + 1.4vmin);height:4.6vmin;display:none;z-index:5;
   background:var(--panel);border-top:1px solid var(--accent);border-bottom:1px solid var(--line)}
 .ticker-on .ticker{display:flex}
 .tk-label{flex:none;display:flex;align-items:center;padding:0 3.2vmin 0 2vmin;background:var(--accent);color:var(--bg);
@@ -298,6 +344,8 @@ body.ticker-on{--tick:5.8vmin}
 .fh:first-child{margin-top:0}
 
 @media (prefers-reduced-motion: reduce){
+  .map-quote{transition:none}
+  .gal img{transition:none}
   .alert{transition:none}
   body.boot .zone{animation:none}
   .row .bar i{transition:none}
@@ -329,6 +377,7 @@ body.ticker-on{--tick:5.8vmin}
     <option value="light">Motion: light</option>
   </select>
   <button id="bFull" title="Shortcut: F">Full screen</button>
+  <button id="bPerf" title="Shortcut: P">Speed check</button>
   <button id="bReset" class="danger">Reset layout</button>
 </div>
 
@@ -341,6 +390,7 @@ body.ticker-on{--tick:5.8vmin}
   </div>
 </aside>
 <div class="toast" id="toast" role="status"></div>
+<div class="fps" id="fps" hidden></div>
 
 <script>
 (() => {
@@ -666,13 +716,19 @@ const svcISS = () => service('iss', async prev => {
 }, 5000);
 const svcLaunches = () => service('launches', async () => {
   let j;
-  try { j = await getJSON('https://ll.thespacedevs.com/2.3.0/launches/upcoming/?limit=8&mode=list'); }
-  catch(e){ j = await getJSON('https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=8&mode=list'); }
-  return (j.results || []).map(r => ({
+  try { j = await getJSON('https://ll.thespacedevs.com/2.3.0/launches/upcoming/?limit=8&mode=detailed'); }
+  catch(e){ j = await getJSON('https://ll.thespacedevs.com/2.2.0/launch/upcoming/?limit=8&mode=detailed'); }
+  const first = l => { const x = (l || [])[0]; return x ? (x.url || x) : ''; };
+  return (j.results || []).map(r => {
+    const vid = first(r.vid_urls || r.vidURLs), info = first(r.info_urls || r.infoURLs);
+    return {
+    link: vid || info || `https://www.google.com/search?q=${encodeURIComponent(r.name + ' launch')}`,
+    linkKind: vid ? 'webcast' : info ? 'info' : 'search',
+    about: (r.mission && r.mission.description) || '',
     name:r.name, net:Date.parse(r.net), status:(r.status && (r.status.abbrev || r.status.name)) || '',
     provider:(r.launch_service_provider && r.launch_service_provider.name) || r.lsp_name || '',
     pad:(r.pad && r.pad.location && r.pad.location.name) || r.location || (r.pad && r.pad.name) || ''
-  })).filter(l => !isNaN(l.net)).sort((a, b) => a.net - b.net);
+  }; }).filter(l => !isNaN(l.net)).sort((a, b) => a.net - b.net);
 }, 30 * 60e3);
 const svcSpaceWx = () => service('swx', async () => {
   const [kp, wind, flare] = await Promise.allSettled([
@@ -728,6 +784,431 @@ const svcCalendar = links => service('ics:' + links.join('|'), async () => {
   if (!ev.length && all.every(r => r.status === 'rejected')) throw new Error('unreachable');
   return ev;
 }, 30 * 60e3);
+
+// Reddit listings: your Vercel Reddit app first, then Reddit directly, then the RSS feed through relays.
+async function redditPosts(sub, t, limit){
+  const urls = [];
+  if (HOSTED) urls.push(`/api/reddit?sub=${sub}&t=${t}&limit=${limit}`);
+  urls.push(`https://www.reddit.com/r/${sub}/top.json?t=${t}&limit=${limit}&raw_json=1`);
+  for (const u of urls){
+    try { const r = await fetchT(u, 10000); if (r.ok){ const j = await r.json(); if (j.data && j.data.children) return {json:j.data.children.map(c => c.data)}; } } catch(e){}
+  }
+  for (const u of [`https://old.reddit.com/r/${sub}/top/.rss?t=${t}&limit=${limit}`, `https://www.reddit.com/r/${sub}/top/.rss?t=${t}&limit=${limit}`]){
+    try { return {rss:await fetchText(u)}; } catch(e){}
+  }
+  throw new Error('Reddit blocked the request');
+}
+const IMG_RX = /\.(jpe?g|png|gif|webp)(\?|$)/i;
+function redditImages(res, sub){
+  const out = [];
+  if (res.json) res.json.forEach(d => {
+    if (d.over_18 || d.is_video || d.stickied) return;
+    let img = '';
+    if (d.is_gallery && d.gallery_data && d.media_metadata){
+      const m = d.media_metadata[d.gallery_data.items[0].media_id];
+      img = m && m.s && (m.s.u || m.s.gif) || '';
+    }
+    if (!img && IMG_RX.test(d.url || '')) img = d.url;
+    if (!img && d.preview && d.preview.images && d.preview.images[0]) img = d.preview.images[0].source.url;
+    if (img) out.push({img, title:d.title, sub:'r/' + (d.subreddit || sub), link:'https://www.reddit.com' + d.permalink});
+  });
+  if (res.rss){
+    const doc = new DOMParser().parseFromString(res.rss, 'text/xml');
+    [...doc.getElementsByTagName('entry')].forEach(e => {
+      const html = new DOMParser().parseFromString((e.getElementsByTagName('content')[0] || {}).textContent || '', 'text/html');
+      const full = [...html.querySelectorAll('a')].map(a => a.getAttribute('href')).find(h => h && IMG_RX.test(h));
+      const thumb = html.querySelector('img') && html.querySelector('img').getAttribute('src');
+      const le = e.getElementsByTagName('link')[0];
+      if (full || thumb) out.push({img:full || thumb, title:clean((e.getElementsByTagName('title')[0] || {}).textContent), sub:'r/' + sub, link:le ? le.getAttribute('href') : ''});
+    });
+  }
+  return out;
+}
+const svcRedditImages = (subs, t) => service('img:' + subs.join(',') + ':' + t, async () => {
+  const all = await Promise.allSettled(subs.map(async s => redditImages(await redditPosts(s, t, 50), s)));
+  const ok = all.filter(r => r.status === 'fulfilled');
+  if (!ok.length) throw new Error('Reddit blocked the request');
+  return {images:ok.flatMap(r => r.value), failed:all.map((r, k) => r.status === 'rejected' ? 'r/' + subs[k] : '').filter(Boolean)};
+}, 30 * 60e3);
+
+/* ---------- World weather extremes ---------- */
+// About 120 places: big cities plus spots known for extreme snow, rain, wind, heat, cold and storms.
+const WX_POINTS = `Aomori, Japan|40.82|140.74
+Sapporo, Japan|43.06|141.35
+Niigata, Japan|37.92|139.04
+Anchorage, Alaska|61.22|-149.9
+Valdez, Alaska|61.13|-146.35
+Juneau, Alaska|58.3|-134.42
+Utqiagvik, Alaska|71.29|-156.79
+Buffalo, New York|42.89|-78.88
+Syracuse, New York|43.05|-76.15
+Mount Washington, New Hampshire|44.27|-71.3
+Marquette, Michigan|46.54|-87.4
+Denver, Colorado|39.74|-104.99
+Alta, Utah|40.59|-111.64
+Mount Baker, Washington|48.86|-121.67
+Banff, Canada|51.18|-115.57
+St. John's, Canada|47.56|-52.71
+Iqaluit, Canada|63.75|-68.52
+Yellowknife, Canada|62.45|-114.37
+Alert, Canada|82.5|-62.35
+Nuuk, Greenland|64.18|-51.72
+Reykjavík, Iceland|64.15|-21.94
+Tromsø, Norway|69.65|18.96
+Bergen, Norway|60.39|5.32
+Murmansk, Russia|68.97|33.08
+Norilsk, Russia|69.35|88.2
+Yakutsk, Russia|62.03|129.73
+Oymyakon, Russia|63.46|142.79
+Verkhoyansk, Russia|67.55|133.39
+Petropavlovsk-Kamchatsky, Russia|53.02|158.65
+Vladivostok, Russia|43.12|131.89
+Moscow, Russia|55.76|37.62
+Ulaanbaatar, Mongolia|47.89|106.91
+Harbin, China|45.8|126.53
+Beijing, China|39.9|116.4
+Shanghai, China|31.23|121.47
+Hong Kong|22.32|114.17
+Taipei, Taiwan|25.03|121.57
+Tokyo, Japan|35.68|139.69
+Seoul, South Korea|37.57|126.98
+Manila, Philippines|14.6|120.98
+Tacloban, Philippines|11.24|125.0
+Ho Chi Minh City, Vietnam|10.82|106.63
+Bangkok, Thailand|13.76|100.5
+Singapore|1.35|103.82
+Bogor, Indonesia|-6.6|106.8
+Jakarta, Indonesia|-6.21|106.85
+Darwin, Australia|-12.46|130.84
+Port Hedland, Australia|-20.31|118.58
+Marble Bar, Australia|-21.17|119.75
+Alice Springs, Australia|-23.7|133.88
+Sydney, Australia|-33.87|151.21
+Hobart, Australia|-42.88|147.33
+Wellington, New Zealand|-41.29|174.78
+Milford Sound, New Zealand|-44.67|167.92
+Suva, Fiji|-18.14|178.44
+Honolulu, Hawaii|21.31|-157.86
+Hilo, Hawaii|19.72|-155.09
+Mawsynram, India|25.3|91.58
+Mumbai, India|19.08|72.88
+Kolkata, India|22.57|88.36
+Delhi, India|28.61|77.21
+Jacobabad, Pakistan|28.28|68.44
+Karachi, Pakistan|24.86|67.01
+Dhaka, Bangladesh|23.81|90.41
+Kathmandu, Nepal|27.72|85.32
+Lhasa, Tibet|29.65|91.17
+Leh, India|34.15|77.58
+Kuwait City, Kuwait|29.38|47.99
+Basra, Iraq|30.51|47.78
+Ahvaz, Iran|31.32|48.67
+Dubai, UAE|25.2|55.27
+Riyadh, Saudi Arabia|24.71|46.68
+Muscat, Oman|23.59|58.41
+Tehran, Iran|35.69|51.39
+Istanbul, Turkey|41.01|28.98
+Cairo, Egypt|30.04|31.24
+Aswan, Egypt|24.09|32.9
+Khartoum, Sudan|15.5|32.56
+Timbuktu, Mali|16.77|-3.01
+Tamanrasset, Algeria|22.79|5.52
+Lagos, Nigeria|6.52|3.38
+Kinshasa, DR Congo|-4.44|15.27
+Goma, DR Congo|-1.68|29.22
+Kampala, Uganda|0.35|32.58
+Nairobi, Kenya|-1.29|36.82
+Addis Ababa, Ethiopia|9.03|38.74
+Dallol, Ethiopia|14.24|40.3
+Johannesburg, South Africa|-26.2|28.05
+Cape Town, South Africa|-33.92|18.42
+Antananarivo, Madagascar|-18.88|47.51
+Mauritius|-20.16|57.5
+London, UK|51.51|-0.13
+Lerwick, Shetland|60.15|-1.15
+Dublin, Ireland|53.35|-6.26
+Paris, France|48.86|2.35
+Berlin, Germany|52.52|13.4
+Madrid, Spain|40.42|-3.7
+Seville, Spain|37.39|-5.98
+Rome, Italy|41.9|12.5
+Athens, Greece|37.98|23.73
+Zugspitze, Germany|47.42|10.99
+Reykjanes, Iceland|63.83|-22.7
+New York City|40.71|-74.01
+Chicago, Illinois|41.88|-87.63
+Miami, Florida|25.76|-80.19
+Tampa, Florida|27.95|-82.46
+New Orleans, Louisiana|29.95|-90.07
+Houston, Texas|29.76|-95.37
+Oklahoma City, Oklahoma|35.47|-97.52
+Phoenix, Arizona|33.45|-112.07
+Death Valley, California|36.46|-116.87
+Los Angeles, California|34.05|-118.24
+San Francisco, California|37.77|-122.42
+Portland, Oregon|45.52|-122.68
+Seattle, Washington|47.61|-122.33
+Mexico City, Mexico|19.43|-99.13
+Havana, Cuba|23.11|-82.37
+San Juan, Puerto Rico|18.47|-66.11
+Catatumbo, Venezuela|9.5|-71.6
+Bogotá, Colombia|4.71|-74.07
+Quibdó, Colombia|5.69|-76.66
+Manaus, Brazil|-3.12|-60.02
+Rio de Janeiro, Brazil|-22.91|-43.17
+São Paulo, Brazil|-23.55|-46.63
+Lima, Peru|-12.05|-77.04
+Atacama, Chile|-24.5|-69.25
+Buenos Aires, Argentina|-34.6|-58.38
+Punta Arenas, Chile|-53.16|-70.91
+Ushuaia, Argentina|-54.8|-68.3
+Stanley, Falkland Islands|-51.7|-57.85
+McMurdo Station, Antarctica|-77.85|166.67
+Vostok Station, Antarctica|-78.46|106.84
+South Pole, Antarctica|-89.99|0
+Niseko, Hokkaido|42.86|140.69|jp
+Kutchan, Hokkaido|42.9|140.76|jp
+Rusutsu, Hokkaido|42.75|140.9|jp
+Otaru, Hokkaido|43.19|141.0|jp
+Iwamizawa, Hokkaido|43.2|141.78|jp
+Asahikawa, Hokkaido|43.77|142.37|jp
+Asahidake, Hokkaido|43.66|142.85|jp
+Furano, Hokkaido|43.34|142.38|jp
+Wakkanai, Hokkaido|45.42|141.67|jp
+Hakodate, Hokkaido|41.77|140.73|jp
+Obihiro, Hokkaido|42.92|143.2|jp
+Kushiro, Hokkaido|42.98|144.38|jp
+Abashiri, Hokkaido|44.02|144.27|jp
+Sukayu Onsen (Hakkōda), Aomori|40.65|140.85|jp
+Hirosaki, Aomori|40.6|140.46|jp
+Akita|39.72|140.1|jp
+Hachimantai, Iwate|39.95|140.85|jp
+Morioka, Iwate|39.7|141.15|jp
+Sendai, Miyagi|38.27|140.87|jp
+Yamagata|38.24|140.36|jp
+Zaō Onsen, Yamagata|38.17|140.4|jp
+Hijiori Onsen, Yamagata|38.6|140.17|jp
+Aizuwakamatsu, Fukushima|37.49|139.93|jp
+Tadami, Fukushima|37.35|139.32|jp
+Nagaoka, Niigata|37.45|138.85|jp
+Tokamachi, Niigata|37.13|138.76|jp
+Tsunan, Niigata|37.01|138.65|jp
+Yuzawa, Niigata|36.93|138.81|jp
+Myōkō Kōgen, Niigata|36.89|138.18|jp
+Jōetsu (Takada), Niigata|37.1|138.25|jp
+Minakami, Gunma|36.68|138.97|jp
+Okunikkō, Tochigi|36.74|139.49|jp
+Nozawa Onsen, Nagano|36.92|138.63|jp
+Shiga Kōgen, Nagano|36.75|138.5|jp
+Hakuba, Nagano|36.7|137.86|jp
+Nagano|36.65|138.19|jp
+Matsumoto, Nagano|36.24|137.97|jp
+Toyama|36.7|137.21|jp
+Tateyama Murodō, Toyama|36.58|137.6|jp
+Kanazawa, Ishikawa|36.56|136.66|jp
+Shiramine (Hakusan), Ishikawa|36.17|136.62|jp
+Shirakawa-gō, Gifu|36.26|136.91|jp
+Takayama, Gifu|36.15|137.25|jp
+Fukui|36.06|136.22|jp
+Ōno, Fukui|35.98|136.49|jp
+Mount Fuji summit|35.36|138.73|jp
+Nagoya|35.18|136.91|jp
+Kyoto|35.01|135.77|jp
+Osaka|34.69|135.5|jp
+Tottori|35.5|134.24|jp
+Daisen, Tottori|35.37|133.54|jp
+Matsue, Shimane|35.47|133.05|jp
+Hiroshima|34.39|132.46|jp
+Fukuoka|33.59|130.4|jp
+Kagoshima|31.6|130.56|jp
+Naha, Okinawa|26.21|127.68|jp
+Santiago, Chile|-33.45|-70.67|cl
+Valparaíso, Chile|-33.05|-71.62|cl
+Portillo, Chile|-32.84|-70.13|cl
+Valle Nevado, Chile|-33.36|-70.25|cl
+Farellones, Chile|-33.35|-70.31|cl
+Nevados de Chillán, Chile|-36.91|-71.41|cl
+Concepción, Chile|-36.83|-73.05|cl
+Antuco, Chile|-37.41|-71.38|cl
+Corralco (Lonquimay), Chile|-38.38|-71.57|cl
+Pucón, Chile|-39.27|-71.98|cl
+Antillanca, Chile|-40.78|-72.2|cl
+Volcán Osorno, Chile|-41.1|-72.5|cl
+Puerto Montt, Chile|-41.47|-72.94|cl
+Coyhaique, Chile|-45.57|-72.07|cl
+Cochrane, Chile|-47.25|-72.57|cl
+Torres del Paine, Chile|-51.0|-73.0|cl
+Puerto Natales, Chile|-51.73|-72.51|cl
+Wolf Creek Pass, Colorado|37.47|-106.79|co
+Silverton, Colorado|37.81|-107.66|co
+Durango, Colorado|37.28|-107.88|co
+Telluride, Colorado|37.94|-107.81|co
+Crested Butte, Colorado|38.9|-106.97|co
+Aspen, Colorado|39.19|-106.82|co
+Vail, Colorado|39.64|-106.37|co
+Breckenridge, Colorado|39.48|-106.07|co
+Leadville, Colorado|39.25|-106.29|co
+Loveland Pass, Colorado|39.66|-105.88|co
+Winter Park, Colorado|39.89|-105.76|co
+Steamboat Springs, Colorado|40.48|-106.83|co
+Rabbit Ears Pass, Colorado|40.38|-106.61|co
+Estes Park, Colorado|40.38|-105.52|co
+Fort Collins, Colorado|40.59|-105.08|co
+Colorado Springs, Colorado|38.83|-104.82|co
+Grand Junction, Colorado|39.06|-108.55|co
+Stevens Pass, Washington|47.75|-121.09|wa
+Snoqualmie Pass, Washington|47.42|-121.41|wa
+Crystal Mountain, Washington|46.93|-121.5|wa
+Paradise (Mount Rainier), Washington|46.79|-121.74|wa
+White Pass, Washington|46.64|-121.39|wa
+Hurricane Ridge, Washington|47.97|-123.5|wa
+Mission Ridge, Washington|47.29|-120.4|wa
+Leavenworth, Washington|47.6|-120.66|wa
+Wenatchee, Washington|47.42|-120.31|wa
+Yakima, Washington|46.6|-120.51|wa
+Bellingham, Washington|48.75|-122.48|wa
+Mount Spokane, Washington|47.92|-117.11|wa
+Spokane, Washington|47.66|-117.43|wa
+Whistler, BC|50.12|-122.95|ca
+Vancouver, BC|49.28|-123.12|ca
+Revelstoke, BC|51.0|-118.2|ca
+Rogers Pass, BC|51.3|-117.52|ca
+Golden (Kicking Horse), BC|51.3|-117.05|ca
+Fernie, BC|49.5|-115.06|ca
+Big White, BC|49.72|-118.93|ca
+Sun Peaks, BC|50.88|-119.89|ca
+Prince George, BC|53.92|-122.75|ca
+Kitimat, BC|54.05|-128.65|ca
+Stewart, BC|55.94|-129.99|ca
+Prince Rupert, BC|54.32|-130.32|ca
+Lake Louise, Alberta|51.43|-116.18|ca
+Jasper, Alberta|52.87|-118.08|ca
+Calgary, Alberta|51.05|-114.07|ca
+Edmonton, Alberta|53.55|-113.49|ca
+Whitehorse, Yukon|60.72|-135.06|ca
+Dawson City, Yukon|64.06|-139.43|ca
+Inuvik, NWT|68.36|-133.72|ca
+Saskatoon, Saskatchewan|52.13|-106.67|ca
+Regina, Saskatchewan|50.45|-104.62|ca
+Winnipeg, Manitoba|49.9|-97.14|ca
+Churchill, Manitoba|58.77|-94.17|ca
+Rankin Inlet, Nunavut|62.81|-92.09|ca
+Thunder Bay, Ontario|48.38|-89.25|ca
+Sault Ste. Marie, Ontario|46.52|-84.35|ca
+Toronto, Ontario|43.65|-79.38|ca
+Ottawa, Ontario|45.42|-75.7|ca
+Montreal, Quebec|45.5|-73.57|ca
+Mont-Tremblant, Quebec|46.21|-74.59|ca
+Quebec City, Quebec|46.81|-71.21|ca
+Saguenay, Quebec|48.43|-71.07|ca
+Sept-Îles, Quebec|50.21|-66.38|ca
+Gaspé, Quebec|48.83|-64.48|ca
+Labrador City, Labrador|52.94|-66.91|ca
+Goose Bay, Labrador|53.3|-60.42|ca
+Gander, Newfoundland|48.95|-54.61|ca
+Fredericton, New Brunswick|45.96|-66.64|ca
+Charlottetown, PEI|46.24|-63.13|ca
+Halifax, Nova Scotia|44.65|-63.57|ca`.split('\n').map(l => {
+  const [name, lat, lon, tag] = l.split('|');
+  // Region tags for ranking within one area; older entries get theirs from the name.
+  const region = tag || (/, Japan$/.test(name) ? 'jp' : /, Canada$/.test(name) ? 'ca' : /, Chile$/.test(name) ? 'cl' : /, Colorado$/.test(name) ? 'co' : /, Washington$/.test(name) ? 'wa' : '');
+  return {name:name.replace(/, Japan$/, '').replace(/, Canada$/, ''), lat:+lat, lon:+lon, region};
+});
+const WX_REGIONS = [['all','The whole world'],['jp','Japan'],['ca','Canada'],['cl','Chile'],['co','Colorado'],['wa','Washington']];
+
+const WX_CATS = [
+  {id:'local', label:'Local conditions'},
+  {id:'snow', label:'Heaviest snowfall', unit:u => u === 'f' ? ' in' : ' cm', get:(p, d) => p.d.snowfall_sum[d], fmt:v => v.toFixed(1), min:.1, none:'No significant snowfall forecast at the places tracked.'},
+  {id:'rain', label:'Heaviest rain', unit:u => u === 'f' ? ' in' : ' mm', get:(p, d) => p.d.precipitation_sum[d], fmt:v => v < 10 ? v.toFixed(1) : Math.round(v), min:.1, none:'Dry everywhere tracked.'},
+  {id:'gust', label:'Strongest wind gusts', unit:u => u === 'f' ? ' mph' : ' km/h', get:(p, d) => p.d.wind_gusts_10m_max[d], fmt:Math.round},
+  {id:'storm', label:'Thunderstorm and lightning risk', unit:() => ' J/kg', get:(p, d) => p.cape[d] + (p.d.weather_code[d] >= 95 ? 1e5 : 0), fmt:v => Math.round(v % 1e5).toLocaleString(),
+    note:(p, d) => p.d.weather_code[d] >= 95 ? 'thunderstorms forecast' : 'storm energy (CAPE)', min:1},
+  {id:'hot', label:'Hottest', unit:() => '°', get:(p, d) => p.d.temperature_2m_max[d], fmt:Math.round},
+  {id:'cold', label:'Coldest', unit:() => '°', get:(p, d) => p.d.temperature_2m_min[d], fmt:Math.round, asc:true},
+  {id:'swing', label:'Biggest temperature swing', unit:() => '°', get:(p, d) => p.d.temperature_2m_max[d] - p.d.temperature_2m_min[d], fmt:Math.round},
+  {id:'muggy', label:'Highest feels-like heat', unit:() => '°', get:(p, d) => p.d.apparent_temperature_max[d], fmt:Math.round},
+  {id:'uv', label:'Strongest sunshine (UV index)', unit:() => '', get:(p, d) => p.d.uv_index_max[d], fmt:v => v.toFixed(0)},
+  {id:'aqi', label:'Worst air quality (US AQI)', aq:true, unit:() => '', get:(p, d) => p.aqi[d], fmt:Math.round},
+  {id:'dust', label:'Dust storms', aq:true, unit:() => ' µg/m³', get:(p, d) => p.dust[d], fmt:Math.round, min:20, none:'No notable dust in the air at the places tracked.'},
+  {id:'alerts', label:'Disaster alerts (storms, floods, volcanoes, fires)'}
+];
+const wxCat = id => WX_CATS.find(c => c.id === id) || WX_CATS[0];
+const dayMax = (arr, d) => { const v = (arr || []).slice(d * 24, d * 24 + 24).filter(x => x != null); return v.length ? Math.max(...v) : null; };
+
+async function openMeteoBatches(base, build){
+  const out = []; let fails = 0;
+  for (let i = 0; i < WX_POINTS.length; i += 40){
+    const b = WX_POINTS.slice(i, i + 40);
+    try {
+      const j = await getJSON(`${base}&latitude=${b.map(p => p.lat).join(',')}&longitude=${b.map(p => p.lon).join(',')}`);
+      (Array.isArray(j) ? j : [j]).forEach((r, k) => { if (r && b[k]) out.push(build(b[k], r)); });
+    } catch(e){ fails++; }
+  }
+  if (!out.length) throw new Error('weather service unavailable');
+  return out;
+}
+const svcWorldWx = units => service('gwx:' + units, () => openMeteoBatches(
+  'https://api.open-meteo.com/v1/forecast?daily=weather_code,temperature_2m_max,temperature_2m_min,apparent_temperature_max,precipitation_sum,snowfall_sum,wind_gusts_10m_max,uv_index_max&hourly=cape&forecast_days=2&timezone=auto' +
+  (units === 'f' ? '&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch' : ''),
+  (p, r) => ({...p, d:r.daily, cape:[dayMax(r.hourly && r.hourly.cape, 0) || 0, dayMax(r.hourly && r.hourly.cape, 1) || 0]})
+), 90 * 60e3);
+const svcWorldAir = () => service('gaq', () => openMeteoBatches(
+  'https://air-quality-api.open-meteo.com/v1/air-quality?hourly=us_aqi,dust&forecast_days=2&timezone=auto',
+  (p, r) => ({...p, aqi:[dayMax(r.hourly.us_aqi, 0), dayMax(r.hourly.us_aqi, 1)], dust:[dayMax(r.hourly.dust, 0), dayMax(r.hourly.dust, 1)]})
+), 120 * 60e3);
+const GDACS_TYPES = {TC:'Tropical cyclone', FL:'Flood', VO:'Volcano', DR:'Drought', WF:'Wildfire'};
+const svcDisasters = () => service('gdacs', async () => {
+  let text;
+  try { const r = await fetchT('https://www.gdacs.org/xml/rss.xml', 12000); if (!r.ok) throw 0; text = await r.text(); }
+  catch(e){ text = await fetchText('https://www.gdacs.org/xml/rss.xml'); }
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  const g = (n, tag) => { const e = n.getElementsByTagName(tag)[0]; return e ? e.textContent.trim() : ''; };
+  const rank = {Red:3, Orange:2, Green:1};
+  return [...doc.getElementsByTagName('item')].map(n => ({
+    type:g(n, 'gdacs:eventtype'), level:g(n, 'gdacs:alertlevel'), country:g(n, 'gdacs:country'),
+    title:clean(g(n, 'title')), link:g(n, 'link'), date:Date.parse(g(n, 'pubDate')) || 0
+  })).filter(e => GDACS_TYPES[e.type]).sort((a, b) => (rank[b.level] || 0) - (rank[a.level] || 0) || b.date - a.date);
+}, 30 * 60e3);
+
+/* ---------- Quotes from Wikiquote ---------- */
+function cleanWiki(t){
+  t = t.replace(/<ref[^>]*\/>/gi, '').replace(/<ref[\s\S]*?<\/ref>/gi, '');
+  let prev; do { prev = t; t = t.replace(/\{\{[^{}]*\}\}/g, ''); } while (t !== prev);
+  return t.replace(/\[\[(?:File|Image):[^\]]*\]\]/gi, '')
+    .replace(/\[\[[^\]|]*\|([^\]]*)\]\]/g, '$1').replace(/\[\[([^\]]*)\]\]/g, '$1')
+    .replace(/\[https?:\/\/\S+\s([^\]]*)\]/g, '$1').replace(/\[https?:\/\/[^\]]*\]/g, '')
+    .replace(/'{2,}/g, '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ').replace(/&mdash;/g, '—').replace(/&quot;/g, '"').replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ').trim();
+}
+// Quotes listed on a Wikiquote page, leaving out disputed, misattributed and "quotes about" sections.
+function wikiquoteQuotes(wt, who){
+  const out = []; let skip = false;
+  for (const line of wt.split('\n')){
+    const h = line.match(/^==\s*([^=].*?)\s*==\s*$/);
+    if (h){ skip = /disputed|misattribut|about|see also|external|references|sources|attributed|notes|cast/i.test(h[1]); continue; }
+    if (skip) continue;
+    const m = line.match(/^\*\s*(?!\*)(.+)$/); if (!m) continue;
+    const q = cleanWiki(m[1]).replace(/^["“]|["”]$/g, '');
+    if (q.length >= 25 && q.length <= 280 && !/^(as quoted|quoted in|source:)/i.test(q)) out.push({q, who});
+  }
+  return out;
+}
+const svcQuotes = names => service('quotes:' + names.join('|').toLowerCase(), async () => {
+  const API = 'https://en.wikiquote.org/w/api.php?format=json&formatversion=2&origin=*';
+  const res = await Promise.allSettled(names.map(async n => {
+    const sr = await getJSON(`${API}&action=query&list=search&srlimit=1&srsearch=${encodeURIComponent(n)}`);
+    const hit = sr.query && sr.query.search && sr.query.search[0];
+    if (!hit) throw new Error('no page');
+    const pg = await getJSON(`${API}&action=parse&prop=wikitext&redirects=1&page=${encodeURIComponent(hit.title)}`);
+    const quotes = wikiquoteQuotes((pg.parse && pg.parse.wikitext) || '', hit.title);
+    if (!quotes.length) throw new Error('no quotes');
+    return quotes;
+  }));
+  const quotes = res.filter(r => r.status === 'fulfilled').flatMap(r => r.value);
+  if (!quotes.length) throw new Error('no quotes found');
+  return { quotes, missing:names.filter((n, k) => res[k].status === 'rejected') };
+}, 24 * 36e5);
 
 const WMO = c => c === 0 ? 'Clear' : c === 1 ? 'Mostly clear' : c === 2 ? 'Partly cloudy' : c === 3 ? 'Overcast' : c <= 48 ? 'Fog'
   : c <= 57 ? 'Drizzle' : c <= 67 ? 'Rain' : c <= 77 ? 'Snow' : c <= 82 ? 'Showers' : c <= 86 ? 'Snow showers' : 'Thunderstorms';
@@ -928,27 +1409,28 @@ function geoLocate(title){
 /* ---------- Zone types ---------- */
 const TYPES = {
   clock: {
-    label:'Clock', defaults:{ places:'London, UK\nTokyo', weather:'yes', units:'f', home:'', h24:'yes' },
+    label:'Clock', defaults:{ places:'London, UK\nTokyo', weather:'yes', units:'f', home:'', h24:'yes', fit:'yes' },
     fields:[
       {key:'places', label:'Other places, one per line. A city like “Tokyo” or “Paris, France”, or a time zone like “UTC”.', kind:'textarea'},
       {key:'weather', label:'Weather for each place', kind:'select', options:[['yes','Show'],['no','Hide']]},
       {key:'home', label:'Your city, for local weather beside the date (optional)', kind:'text'},
       {key:'units', label:'Units', kind:'select', options:[['f','°F'],['c','°C']]},
-      {key:'h24', label:'24-hour clock', kind:'select', options:[['yes','Yes'],['no','No']]}
+      {key:'h24', label:'24-hour clock', kind:'select', options:[['yes','Yes'],['no','No']]},
+      {key:'fit', label:'Resize the zone to fit all places', kind:'select', options:[['yes','Yes, and move the zone below to make room'],['no','No, keep the size I set']]}
     ],
-    hint:'Make the zone taller if your places don’t all fit.',
+    hint:'Places show two per row. Add as many as you like.',
     mount(bd, z){
       bd.innerHTML = '<div class="clock"><div class="big"></div><div class="date"><span class="dt"></span><span class="hw"></span></div><div class="places"></div></div>';
       const big = $('.big', bd), dt = $('.dt', bd), hw = $('.hw', bd), box = $('.places', bd), root = $('.clock', bd);
       const h24 = z.opts.h24 !== 'no', units = z.opts.units || 'f', wx = z.opts.weather !== 'no';
       const dayKey = new Intl.DateTimeFormat('en-CA', {year:'numeric', month:'2-digit', day:'2-digit'});
       const un = [];
-      const lines = (z.opts.places || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 8);
+      const lines = (z.opts.places || '').split('\n').map(s => s.trim()).filter(Boolean).slice(0, 40);
       root.classList.toggle('has-pl', lines.length > 0);
       let rows = [];
       rows = lines.map(line => {
         const el = document.createElement('div'); el.className = 'pl';
-        el.innerHTML = '<span class="pn"></span><span class="pd"></span><b class="pt">--:--</b><span class="pw"></span>';
+        el.innerHTML = '<span class="pn"></span><b class="pt">--:--</b><span class="pw"></span><span class="pd"></span>';
         box.appendChild(el);
         const row = { el, n:$('.pn', el), d:$('.pd', el), t:$('.pt', el), w:$('.pw', el), fmt:null, dk:null };
         row.n.textContent = line.split(',')[0];
@@ -985,6 +1467,7 @@ const TYPES = {
           r.d.textContent = k > today ? 'Tomorrow' : k < today ? 'Yesterday' : '';
         });
       }
+      if (z.opts.fit !== 'no' && lines.length) requestAnimationFrame(() => requestAnimationFrame(() => autoFit(z, root)));
       return { second: tick, destroy(){ un.forEach(f => f()); } };
     }
   },
@@ -1096,30 +1579,86 @@ const TYPES = {
   },
 
   map: {
-    label:'World map', defaults:{ news:'yes', quakes:'yes', iss:'yes' },
+    label:'World map', defaults:{ news:'yes', quakes:'yes', iss:'yes', quotes:'yes', quoteFrom:'Ursula K. Le Guin\nOctavia E. Butler\nPeter Kropotkin\nEmma Goldman', quoteOwn:'', quoteSeconds:'25' },
     fields:[
+      {key:'quotes', label:'Quotes below the map', kind:'select', options:[['yes','Show'],['no','Hide']]},
+      {key:'quoteFrom', label:'Quote from these authors, poets, books or people, one per line', kind:'textarea', when:z => z.opts.quotes !== 'no'},
+      {key:'quoteOwn', label:'Your own quotes, one per line, written as: quote — who said it', kind:'textarea', when:z => z.opts.quotes !== 'no'},
+      {key:'quoteSeconds', label:'Seconds per quote', kind:'number', when:z => z.opts.quotes !== 'no'},
       {key:'news', label:'Headline locations', kind:'select', options:[['yes','Show'],['no','Hide']]},
       {key:'quakes', label:'Earthquakes (last 24 hours)', kind:'select', options:[['yes','Show'],['no','Hide']]},
       {key:'iss', label:'Space station track', kind:'select', options:[['yes','Show'],['no','Hide']]}
     ],
-    hint:'Headline locations come from the newsfeed zones and the ticker. Land in darkness is shown dimmer.',
+    hint:'Headline locations come from the newsfeed zones and the ticker. Land in darkness is shown dimmer. Quotes come from each name’s page on Wikiquote, a free collection of sourced quotations, plus any you type yourself.',
     mount(bd, z){
       bd.classList.add('bd-art');
       const cv = document.createElement('canvas'); bd.appendChild(cv);
       const cap = document.createElement('a'); cap.className = 'map-cap'; cap.target = '_blank'; cap.rel = 'noopener noreferrer'; bd.appendChild(cap);
       const leg = document.createElement('div'); leg.className = 'map-legend'; bd.appendChild(leg);
+      const tip = document.createElement('div'); tip.className = 'map-tip'; tip.hidden = true; bd.appendChild(tip);
+      const un = [];
+      const showQuotes = z.opts.quotes !== 'no';
+      const qEl = document.createElement('figure'); qEl.className = 'map-quote'; qEl.hidden = !showQuotes;
+      qEl.innerHTML = '<blockquote></blockquote><figcaption></figcaption>'; bd.appendChild(qEl);
+      const qText = qEl.children[0], qWho = qEl.children[1];
+      let reserved = 40, qPool = [], qOrder = [], qk = 0, qTimer = null;
+      const own = (z.opts.quoteOwn || '').split('\n').map(l => l.trim()).filter(Boolean).map(l => {
+        const m = l.match(/^(.*\S)\s+[—–-]{1,2}\s+(.+)$/);
+        return m ? {q:m[1].replace(/^["“]|["”]$/g, ''), who:m[2]} : {q:l.replace(/^["“]|["”]$/g, ''), who:''};
+      });
+      const nextQuote = () => {
+        if (!qPool.length) return;
+        if (qk >= qOrder.length){ qOrder = qPool.map((_, i) => i).sort(() => Math.random() - .5); qk = 0; }
+        const it = qPool[qOrder[qk++]];
+        qEl.classList.add('fade');
+        setTimeout(() => { qText.textContent = it.q; qWho.textContent = it.who ? '— ' + it.who : ''; qEl.classList.remove('fade'); }, calm() ? 0 : 700);
+      };
+      if (showQuotes){
+        qPool = own.slice(); if (qPool.length) nextQuote();
+        const names = (z.opts.quoteFrom || '').split('\n').map(l => l.trim()).filter(Boolean);
+        if (names.length) un.push(svcQuotes(names).use((d, err) => {
+          qPool = own.concat(d ? d.quotes : []); qOrder = []; qk = 0;
+          if (qPool.length) nextQuote();
+          else { qText.textContent = ''; qWho.textContent = 'No quotes found for those names on Wikiquote. Check the spelling in edit mode.'; }
+        }));
+        else if (!own.length) qWho.textContent = 'Add authors or your own quotes in edit mode.';
+        qTimer = setInterval(nextQuote, Math.max(8, +z.opts.quoteSeconds || 25) * 1000);
+      }
+      let issXY = null, hoverISS = false;
+      const fillTip = () => {
+        if (!iss) return;
+        tip.innerHTML = '<b>International Space Station</b><span></span><span></span><span></span>';
+        tip.children[1].textContent = `${Math.abs(iss.lat).toFixed(2)}° ${iss.lat >= 0 ? 'N' : 'S'}, ${Math.abs(iss.lon).toFixed(2)}° ${iss.lon >= 0 ? 'E' : 'W'}`;
+        tip.children[2].textContent = `${Math.round(iss.alt)} km up  ·  ${Math.round(iss.vel).toLocaleString()} km/h`;
+        tip.children[3].textContent = iss.vis === 'eclipsed' ? 'In Earth’s shadow' : 'In sunlight';
+      };
+      cv.addEventListener('mousemove', e => {
+        if (editing || !issXY) return;
+        const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+        const near = Math.hypot(mx - issXY[0], my - issXY[1]) < 22;
+        if (near !== hoverISS){ hoverISS = near; cv.style.cursor = near ? 'pointer' : ''; tip.hidden = !near; if (near) fillTip(); }
+        if (near){
+          tip.style.left = Math.min(mx + 18, w - tip.offsetWidth - 8) + 'px';
+          tip.style.top = Math.max(8, my - tip.offsetHeight - 12) + 'px';
+        }
+      });
+      cv.addEventListener('mouseleave', () => { hoverISS = false; tip.hidden = true; cv.style.cursor = ''; });
       const ctx = cv.getContext('2d'); let w = 0, h = 0, dpr = 1, base = null, baseKey = '';
       const ro = new ResizeObserver(() => {
         dpr = 1; // a dot map doesn't need retina resolution, and it's much cheaper to draw
         w = bd.clientWidth; h = bd.clientHeight;
+        // Room kept free at the bottom for the caption and, if shown, the quote above it.
+        const capBottom = parseFloat(getComputedStyle(cap).bottom) || 10, capH = cap.offsetHeight || 22;
+        qEl.style.bottom = (capBottom + capH + 10) + 'px';
+        reserved = capBottom + capH + 12 + (showQuotes ? qEl.offsetHeight + 12 : 0);
         cv.width = Math.max(1, w * dpr); cv.height = Math.max(1, h * dpr); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); baseKey = '';
       });
       ro.observe(bd);
-      const un = []; let quakes = [], iss = null, marks = [], sel = 0, lastCap = 0;
+      let quakes = [], iss = null, marks = [], sel = 0, lastCap = 0;
       const L = [];
       if (z.opts.news !== 'no') L.push('◆ News');
       if (z.opts.quakes !== 'no'){ L.push('○ Quakes'); un.push(svcQuakes().use(d => { quakes = (d || []).filter(q => Date.now() - q.time < 864e5); })); }
-      if (z.opts.iss !== 'no'){ L.push('◇ ISS'); un.push(svcISS().use(d => { iss = d; })); }
+      if (z.opts.iss !== 'no'){ L.push('◇ ISS (hover for details)'); un.push(svcISS().use(d => { iss = d; if (hoverISS) fillTip(); })); }
       leg.textContent = L.join('     ');
       const recompute = () => {
         const m = {};
@@ -1133,8 +1672,8 @@ const TYPES = {
       };
       if (z.opts.news !== 'no'){ NEWSBUS.subs.add(recompute); recompute(); }
       const geom = () => {
-        const ar = 360 / 140, pw = Math.min(w * .96, (h - 30) * ar), ph = pw / ar;
-        return { ox:(w - pw) / 2, oy:Math.max(4, (h - ph) / 2 - 6), pw, ph };
+        const ar = 360 / 140, avail = Math.max(40, h - reserved - 8), pw = Math.min(w * .96, avail * ar), ph = pw / ar;
+        return { ox:(w - pw) / 2, oy:Math.max(6, (avail - ph) / 2 + 6), pw, ph };
       };
       const proj = (g, lat, lon) => [g.ox + (lon + 180) / 360 * g.pw, g.oy + (81.25 - lat) / 140 * g.ph];
       const drawBase = g => {
@@ -1159,7 +1698,7 @@ const TYPES = {
       return {
         frame(t){
           if (!w || !h) return;
-          const g = geom(), key = `${w}x${h}${C.accent}${Math.floor(Date.now() / 6e5)}`;
+          const g = geom(), key = `${w}x${h}x${reserved}${C.accent}${Math.floor(Date.now() / 6e5)}`;
           if (key !== baseKey){ drawBase(g); baseKey = key; }
           ctx.clearRect(0, 0, w, h); ctx.drawImage(base, 0, 0, w, h);
           const cw = g.pw / MASK_COLS, fs = clamp(cw * 4.2, 10, 18);
@@ -1207,47 +1746,130 @@ const TYPES = {
             let prev = null;
             iss.trail.forEach(([la, lo]) => { const [x, y] = proj(g, la, lo); if (prev && Math.abs(lo - prev) < 180) ctx.lineTo(x, y); else ctx.moveTo(x, y); prev = lo; });
             ctx.stroke(); ctx.setLineDash([]);
-            const [x, y] = proj(g, iss.lat, iss.lon);
-            ctx.fillStyle = rgba(C.accent, .25); ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
+            const [x, y] = proj(g, iss.lat, iss.lon); issXY = [x, y];
+            ctx.fillStyle = rgba(C.accent, hoverISS ? .5 : .25); ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
             ctx.fillStyle = C.hi;
             ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 6); ctx.lineTo(x - 6, y); ctx.closePath(); ctx.fill();
             ctx.fillText('ISS', x + 10, y + 4);
           }
         },
-        destroy(){ ro.disconnect(); un.forEach(f => f()); NEWSBUS.subs.delete(recompute); }
+        destroy(){ ro.disconnect(); un.forEach(f => f()); clearInterval(qTimer); NEWSBUS.subs.delete(recompute); }
       };
     }
   },
 
   weather: {
-    label:'Weather', defaults:{ place:'Portland, Oregon', units:'f' },
+    label:'Weather', defaults:{ show:'local', day:'0', region:'all', cycle:'no', cycleSeconds:'20', place:'Portland, Oregon', units:'f' },
     fields:[
-      {key:'place', label:'Place (city, plus state or country if needed)', kind:'text'},
-      {key:'units', label:'Units', kind:'select', options:[['f','°F and mph'],['c','°C and km/h']]}
+      {key:'show', label:'Show', kind:'select', options:WX_CATS.map(c => [c.id, c.label])},
+      {key:'day', label:'For', kind:'select', options:[['0','Today'],['1','Tomorrow (forecast)']], when:z => z.opts.show !== 'local' && z.opts.show !== 'alerts'},
+      {key:'region', label:'Rank places in', kind:'select', options:WX_REGIONS, when:z => z.opts.show !== 'local' && z.opts.show !== 'alerts'},
+      {key:'cycle', label:'Rotate through every view', kind:'select', options:[['no','No'],['yes','Yes']]},
+      {key:'cycleSeconds', label:'Seconds per view when rotating', kind:'number', when:z => z.opts.cycle === 'yes'},
+      {key:'place', label:'Your place, for Local conditions (city, plus state or country if needed)', kind:'text'},
+      {key:'units', label:'Units', kind:'select', options:[['f','°F, mph, inches'],['c','°C, km/h, cm/mm']]}
     ],
+    hint:'World rankings cover about 270 places: big cities plus spots known for extreme snow, rain, wind, heat, cold and storms. Weather and air quality come from Open-Meteo; disaster alerts from the UN and EU’s GDACS system. There’s no free worldwide lightning-strike count, so the lightning view ranks thunderstorm energy and storm forecasts instead. Click a place to see it on a live weather map.',
     mount(bd, z){
-      bd.innerHTML = '<div class="rd wx"><div class="wx-top"><div class="rd-big"></div><div><div class="rd-sub"></div><div class="rd-txt"></div></div></div><div class="wx-days"></div><div class="status"></div></div>';
-      const big = $('.rd-big', bd), sub = $('.rd-sub', bd), txt = $('.rd-txt', bd), days = $('.wx-days', bd), st = $('.status', bd);
-      big.textContent = '--';
-      const un = svcWeather((z.opts.place || 'Portland').trim(), z.opts.units || 'f').use((d, err) => {
-        if (!d){ txt.textContent = err && /not found/.test(err.message) ? 'Couldn’t find that place. Check the name in edit mode.' : 'Weather unavailable. Retrying.'; return; }
-        const c = d.cur;
-        big.innerHTML = `${Math.round(c.temperature_2m)}<small>°</small>`;
-        sub.textContent = WMO(c.weather_code);
-        txt.textContent = `Feels ${Math.round(c.apparent_temperature)}°  ·  wind ${Math.round(c.wind_speed_10m)} ${d.wind}  ·  ${c.relative_humidity_2m}% humidity`;
-        days.innerHTML = '';
-        d.daily.time.forEach((day, k) => {
-          const el = document.createElement('div');
-          const n = k === 0 ? 'Today' : new Date(day + 'T12:00').toLocaleDateString(undefined, {weekday:'short'});
-          el.innerHTML = '<span></span><b></b><i></i>';
-          el.children[0].textContent = n;
-          el.children[1].textContent = `${Math.round(d.daily.temperature_2m_max[k])}° / ${Math.round(d.daily.temperature_2m_min[k])}°`;
-          el.children[2].textContent = WMO(d.daily.weather_code[k]) + (d.daily.precipitation_probability_max && d.daily.precipitation_probability_max[k] != null ? `  ${d.daily.precipitation_probability_max[k]}%` : '');
-          days.appendChild(el);
+      const units = z.opts.units || 'f';
+      const order = WX_CATS.map(c => c.id);
+      let cur = z.opts.show || 'local', un = null, timer = null;
+      const pick = selectEl(WX_CATS.map(c => [c.id, c.label]), cur);
+      pick.className = 'catpick'; pick.setAttribute('aria-label', 'Weather view');
+      pick.addEventListener('click', e => e.stopPropagation());
+      pick.addEventListener('change', () => { z.opts.show = pick.value; save(); render(); });
+      const view = document.createElement('div'); view.className = 'wxv';
+      bd.append(view, pick);
+
+      const showLocal = () => {
+        view.innerHTML = '<div class="rd wx"><div class="wx-top"><div class="rd-big"></div><div><div class="rd-sub"></div><div class="rd-txt"></div></div></div><div class="wx-days"></div><div class="status"></div></div>';
+        const big = $('.rd-big', view), sub = $('.rd-sub', view), txt = $('.rd-txt', view), days = $('.wx-days', view), st = $('.status', view);
+        big.textContent = '--';
+        return svcWeather((z.opts.place || 'Portland').trim(), units).use((d, err) => {
+          if (!d){ txt.textContent = err && /not found/.test(err.message) ? 'Couldn’t find that place. Check the name in edit mode.' : 'Weather unavailable. Retrying.'; return; }
+          const c = d.cur;
+          big.innerHTML = `${Math.round(c.temperature_2m)}<small>°</small>`;
+          sub.textContent = WMO(c.weather_code);
+          txt.textContent = `Feels ${Math.round(c.apparent_temperature)}°  ·  wind ${Math.round(c.wind_speed_10m)} ${d.wind}  ·  ${c.relative_humidity_2m}% humidity`;
+          days.innerHTML = '';
+          d.daily.time.forEach((day, k) => {
+            const el = document.createElement('div');
+            el.innerHTML = '<span></span><b></b><i></i>';
+            el.children[0].textContent = k === 0 ? 'Today' : new Date(day + 'T12:00').toLocaleDateString(undefined, {weekday:'short'});
+            el.children[1].textContent = `${Math.round(d.daily.temperature_2m_max[k])}° / ${Math.round(d.daily.temperature_2m_min[k])}°`;
+            el.children[2].textContent = WMO(d.daily.weather_code[k]) + (d.daily.precipitation_probability_max && d.daily.precipitation_probability_max[k] != null ? `  ${d.daily.precipitation_probability_max[k]}%` : '');
+            days.appendChild(el);
+          });
+          st.textContent = `${d.name}  ·  updated ${hhmm(Date.now())}`;
         });
-        st.textContent = `${d.name}  ·  updated ${hhmm(Date.now())}`;
-      });
-      return { destroy: un };
+      };
+
+      const shell = title => {
+        view.innerHTML = '<div class="rd wxg"><div class="rd-sub wxg-h"></div><a class="wxg-top" target="_blank" rel="noopener noreferrer"><span class="rd-big"></span><span class="rd-txt"></span></a><ol class="rd-list"></ol><div class="status"></div></div>';
+        $('.wxg-h', view).textContent = title;
+        $('.rd-big', view).textContent = '--';
+        return { top:$('.wxg-top', view), big:$('.rd-big', view), place:$('.rd-txt', view), list:$('.rd-list', view), st:$('.status', view) };
+      };
+      const windy = p => `https://www.windy.com/?${p.lat.toFixed(2)},${p.lon.toFixed(2)},7`;
+
+      const showRanking = c => {
+        const d = +(z.opts.day || 0);
+        const reg = z.opts.region || 'all', regName = (WX_REGIONS.find(r => r[0] === reg) || WX_REGIONS[0])[1];
+        const ui = shell(`${c.label}  ·  ${reg === 'all' ? '' : regName + '  ·  '}${d ? 'tomorrow' : 'today'}`);
+        const svc = c.aq ? svcWorldAir() : svcWorldWx(units);
+        return svc.use((data, err) => {
+          if (!data){ ui.place.textContent = 'World weather unavailable. Retrying.'; return; }
+          const rows = data.filter(p => reg === 'all' || p.region === reg).map(p => ({p, v:c.get(p, d)})).filter(r => r.v != null && !isNaN(r.v) && (c.min == null || r.v >= c.min));
+          rows.sort((a, b) => c.asc ? a.v - b.v : b.v - a.v);
+          if (!rows.length){ ui.big.textContent = '—'; ui.place.textContent = c.none || 'No data right now.'; ui.list.innerHTML = ''; return; }
+          const u = c.unit(units), top = rows[0];
+          ui.big.innerHTML = ''; ui.big.append(document.createTextNode(c.fmt(top.v)));
+          const sm = document.createElement('small'); sm.textContent = u.trim(); ui.big.appendChild(sm);
+          ui.place.textContent = top.p.name + (c.note ? '  ·  ' + c.note(top.p, d) : '');
+          ui.top.href = windy(top.p);
+          ui.list.innerHTML = '';
+          rows.slice(1, 6).forEach(r => {
+            const li = document.createElement('li'); li.innerHTML = '<a target="_blank" rel="noopener noreferrer"></a><b></b>';
+            li.children[0].textContent = r.p.name; li.children[0].href = windy(r.p);
+            li.children[1].textContent = c.fmt(r.v) + u;
+            ui.list.appendChild(li);
+          });
+          ui.st.textContent = `${reg === 'all' ? data.length : data.filter(p => p.region === reg).length} places  ·  updated ${hhmm(Date.now())}`;
+        });
+      };
+
+      const showAlerts = () => {
+        const ui = shell('Disaster alerts  ·  active now');
+        return svcDisasters().use((ev, err) => {
+          if (!ev){ ui.place.textContent = 'Alert feed unavailable. Retrying.'; return; }
+          if (!ev.length){ ui.big.textContent = '0'; ui.place.textContent = 'No active storm, flood, volcano, drought or wildfire alerts.'; ui.list.innerHTML = ''; return; }
+          const serious = ev.filter(e => e.level === 'Red' || e.level === 'Orange').length;
+          ui.big.innerHTML = ''; ui.big.append(document.createTextNode(ev.length));
+          const sm = document.createElement('small'); sm.textContent = serious ? `active · ${serious} serious` : 'active'; ui.big.appendChild(sm);
+          ui.big.classList.toggle('warn', serious > 0);
+          const t = ev[0];
+          ui.place.textContent = t.title; ui.top.href = t.link;
+          ui.list.innerHTML = '';
+          ev.slice(1, 6).forEach(e => {
+            const li = document.createElement('li'); li.innerHTML = '<a target="_blank" rel="noopener noreferrer"></a><b></b>';
+            li.children[0].textContent = `${GDACS_TYPES[e.type]}${e.country ? ', ' + e.country : ''}`; li.children[0].href = e.link;
+            li.children[1].textContent = e.level ? e.level + ' alert' : '';
+            if (e.level === 'Red' || e.level === 'Orange') li.className = 'warn';
+            ui.list.appendChild(li);
+          });
+          ui.st.textContent = `GDACS  ·  updated ${hhmm(Date.now())}`;
+        });
+      };
+
+      const show = id => {
+        if (un) un();
+        cur = id; pick.value = id;
+        const c = wxCat(id);
+        un = id === 'local' ? showLocal() : id === 'alerts' ? showAlerts() : showRanking(c);
+      };
+      show(cur);
+      if (z.opts.cycle === 'yes') timer = setInterval(() => show(order[(order.indexOf(cur) + 1) % order.length]), Math.max(8, +z.opts.cycleSeconds || 20) * 1000);
+      return { destroy(){ if (un) un(); clearInterval(timer); } };
     }
   },
 
@@ -1279,9 +1901,9 @@ const TYPES = {
 
   launches: {
     label:'Rocket launches', defaults:{}, fields:[],
-    hint:'Upcoming launches worldwide, from The Space Devs. Times are your local time.',
+    hint:'Upcoming launches worldwide, from The Space Devs. Times are your local time. Click a launch to open its webcast, or its information page if no webcast is listed yet.',
     mount(bd){
-      bd.innerHTML = '<div class="rd"><div class="rd-txt nm"></div><div class="rd-big"></div><div class="rd-sub"></div><ol class="rd-list"></ol></div>';
+      bd.innerHTML = '<div class="rd"><a class="rd-txt nm" target="_blank" rel="noopener noreferrer"></a><div class="rd-big"></div><div class="rd-sub"></div><ol class="rd-list"></ol></div>';
       const nm = $('.nm', bd), big = $('.rd-big', bd), sub = $('.rd-sub', bd), list = $('.rd-list', bd);
       let next = null;
       big.textContent = 'T- --:--:--';
@@ -1290,12 +1912,14 @@ const TYPES = {
         const up = d.filter(l => l.net > Date.now() - 36e5);
         next = up[0] || null;
         if (!next){ nm.textContent = 'No upcoming launches listed'; return; }
-        nm.textContent = next.name;
-        sub.textContent = [next.provider, next.pad, next.status].filter(Boolean).join('  ·  ');
+        nm.textContent = next.name + (next.linkKind === 'webcast' ? '  ▶' : '');
+        nm.href = next.link; nm.title = next.about;
+        sub.textContent = [next.provider, next.pad, next.status, next.linkKind === 'webcast' ? 'webcast listed' : ''].filter(Boolean).join('  ·  ');
         list.innerHTML = '';
         up.slice(1, 5).forEach(l => {
-          const li = document.createElement('li'); li.innerHTML = '<span></span><b></b>';
-          li.children[0].textContent = l.name;
+          const li = document.createElement('li'); li.innerHTML = '<a target="_blank" rel="noopener noreferrer"></a><b></b>';
+          li.children[0].textContent = l.name + (l.linkKind === 'webcast' ? '  ▶' : '');
+          li.children[0].href = l.link; li.children[0].title = l.about;
           li.children[1].textContent = new Date(l.net).toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' ' + hhmm(l.net);
           list.appendChild(li);
         });
@@ -1338,7 +1962,7 @@ const TYPES = {
   },
 
   iss: {
-    label:'Space station', defaults:{}, fields:[],
+    label:'Space station readout', defaults:{}, fields:[],
     hint:'Live position of the International Space Station, updated every 5 seconds.',
     mount(bd){
       bd.innerHTML = '<div class="rd"><div class="rd-grid"><div><span>Latitude</span><b class="la">--</b></div><div><span>Longitude</span><b class="lo">--</b></div><div><span>Altitude</span><b class="al">--</b></div><div><span>Speed</span><b class="ve">--</b></div></div><div class="rd-sub vis"></div></div>';
@@ -1352,6 +1976,49 @@ const TYPES = {
         vis.textContent = d.vis === 'eclipsed' ? 'In Earth’s shadow' : 'In sunlight';
       });
       return { destroy: un };
+    }
+  },
+
+  gallery: {
+    label:'Reddit images', defaults:{ subs:'r/spaceporn\nr/EarthPorn\nr/solarpunk', period:'week', seconds:'30', fit:'cover' },
+    fields:[
+      {key:'subs', label:'Subreddits, one per line (like r/spaceporn)', kind:'textarea'},
+      {key:'period', label:'Pick from top posts of', kind:'select', options:[['day','Today'],['week','This week'],['month','This month'],['year','This year'],['all','All time']]},
+      {key:'seconds', label:'Seconds per image', kind:'number'},
+      {key:'fit', label:'Fit', kind:'select', options:[['cover','Fill the zone'],['contain','Show whole image']]}
+    ],
+    hint:'Shows a random image from those subreddits’ top posts, skipping anything marked NSFW. Click an image to open its post. Reddit blocks most free relays, so this works best from Vercel with a Reddit app connected (see the README).',
+    mount(bd, z){
+      const subs = (z.opts.subs || '').split('\n').map(s => s.trim().replace(/^.*?\br\//i, '').replace(/[^A-Za-z0-9_].*$/, '')).filter(Boolean);
+      if (!subs.length){ bd.innerHTML = '<div class="empty-msg">Add subreddits in edit mode.</div>'; return {}; }
+      bd.innerHTML = '<div class="gal"><img alt=""><img alt=""><a class="gcap" target="_blank" rel="noopener noreferrer"></a><div class="gmsg">Loading images…</div></div>';
+      const imgs = bd.querySelectorAll('img'), cap = $('.gcap', bd), msg = $('.gmsg', bd);
+      imgs.forEach(i => i.style.objectFit = z.opts.fit === 'contain' ? 'contain' : 'cover');
+      let pool = [], order = [], k = 0, front = 0, timer = null, dead = false;
+      const shuffle = () => { order = pool.map((_, i) => i); for (let i = order.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } k = 0; };
+      const next = (tries = 0) => {
+        if (dead || !pool.length || tries > 6) return;
+        if (k >= order.length) shuffle();
+        const it = pool[order[k++]], back = imgs[1 - front], pre = new Image();
+        pre.referrerPolicy = 'no-referrer';
+        pre.onload = () => {
+          if (dead) return;
+          back.referrerPolicy = 'no-referrer'; back.src = it.img; back.alt = it.title;
+          back.classList.add('on'); imgs[front].classList.remove('on'); front = 1 - front;
+          cap.innerHTML = ''; const b = document.createElement('b'); b.textContent = it.sub; cap.append(b, document.createTextNode(it.title));
+          cap.href = it.link; msg.hidden = true;
+        };
+        pre.onerror = () => next(tries + 1);
+        pre.src = it.img;
+      };
+      const un = svcRedditImages(subs, z.opts.period || 'week').use((d, err) => {
+        if (!d){ msg.hidden = false; msg.textContent = 'Couldn’t get images from Reddit. It blocks most free relays; see the README to connect a Reddit app on Vercel.'; return; }
+        if (!d.images.length){ msg.hidden = false; msg.textContent = 'No images found in those subreddits’ top posts.'; return; }
+        const first = !pool.length; pool = d.images; shuffle();
+        if (first) next();
+      });
+      timer = setInterval(() => next(), Math.max(5, +z.opts.seconds || 30) * 1000);
+      return { destroy(){ dead = true; clearInterval(timer); un(); } };
     }
   },
 
@@ -1599,15 +2266,15 @@ const ART = {
 
 /* ---------- State ---------- */
 function defaults(){
-  return { palette:'earth', news:{...NEWS_DEFAULTS}, zones:[
+  return { v:8, palette:'earth', news:{...NEWS_DEFAULTS}, zones:[
     {id:uid(), type:'clock',     title:'Ship time',       x:1,  y:1, w:3, h:2, opts:{...TYPES.clock.defaults}},
     {id:uid(), type:'news',      title:'Newsfeed',        x:1,  y:3, w:3, h:4, opts:{...TYPES.news.defaults}},
-    {id:uid(), type:'weather',   title:'Local conditions',x:1,  y:7, w:3, h:2, opts:{...TYPES.weather.defaults}},
+    {id:uid(), type:'weather',   title:'Weather',         x:1,  y:7, w:3, h:2, opts:{...TYPES.weather.defaults}},
     {id:uid(), type:'map',       title:'Situation map',   x:4,  y:1, w:6, h:5, opts:{...TYPES.map.defaults}},
     {id:uid(), type:'launches',  title:'Launch schedule', x:4,  y:6, w:3, h:3, opts:{}},
     {id:uid(), type:'quakes',    title:'Seismic',         x:7,  y:6, w:3, h:3, opts:{}},
     {id:uid(), type:'spacewx',   title:'Space weather',   x:10, y:1, w:3, h:3, opts:{}},
-    {id:uid(), type:'iss',       title:'Station track',   x:10, y:4, w:3, h:2, opts:{}},
+    {id:uid(), type:'gallery',   title:'Image feed',      x:10, y:4, w:3, h:2, opts:{...TYPES.gallery.defaults}},
     {id:uid(), type:'events',    title:'Local shows',     x:10, y:6, w:3, h:3, opts:{...TYPES.events.defaults}}
   ]};
 }
@@ -1617,6 +2284,11 @@ function load(){
     if (p && Array.isArray(p.zones)){
       p.zones.forEach(z => { if (z.type === 'news' && !z.opts.mode) z.opts = {...TYPES.news.defaults, seconds:z.opts.seconds || '10'}; });
       p.news = {...NEWS_DEFAULTS, ...(p.news || {})};
+      if ((p.v || 0) < 8){
+        // v8: the space station box became an image feed (station details now show on the map when you hover)
+        p.zones.forEach(z => { if (z.type === 'iss'){ z.type = 'gallery'; z.title = 'Image feed'; z.opts = {...TYPES.gallery.defaults}; } });
+        p.v = 8;
+      }
       p.zones.forEach(z => {
         if (z.type === 'clock' && z.opts.places === undefined){
           const old = (z.opts.extra || '').split(',').map(x => x.trim()).filter(Boolean)
@@ -1624,6 +2296,8 @@ function load(){
           z.opts = {...TYPES.clock.defaults, h24:z.opts.h24 || 'yes', places:old.join('\n')};
         }
       });
+      p.zones.forEach(z => { if (TYPES[z.type]) z.opts = {...TYPES[z.type].defaults, ...(z.opts || {})}; });
+      p.zones.forEach(z => { if (z.type === 'weather' && z.title === 'Local conditions') z.title = 'Weather'; });
       return p;
     }
   } catch(e){}
@@ -1634,6 +2308,43 @@ function save(){
   catch(e){ toast('Couldn’t save this change. If you added an image, try a smaller one.'); }
 }
 let state = load();
+
+/* ---------- Auto-sizing ---------- */
+// Grows or shrinks a zone by whole grid rows so its content fits, nudging the zone below.
+let fitBudget = 0, fitReset;
+function autoFit(z, root){
+  if (!root.isConnected || fitBudget > 6 || !root.lastElementChild) return;
+  const g = grid.getBoundingClientRect(), gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
+  const rowPx = (g.height - gap * 7) / 8 + gap;
+  if (!(rowPx > 10) || !root.clientHeight) return;
+  const last = root.lastElementChild;
+  const over = (last.offsetTop + last.offsetHeight - root.offsetTop + 6) - root.clientHeight;
+  const dh = over > 1 ? Math.ceil(over / rowPx) : -over > rowPx ? -Math.floor(-over / rowPx) : 0;
+  if (dh && resizeZone(z, dh)){
+    fitBudget++; clearTimeout(fitReset); fitReset = setTimeout(() => fitBudget = 0, 3000);
+    save(); render();
+  }
+}
+function resizeZone(z, dh){
+  const sameCols = b => b !== z && b.x < z.x + z.w && b.x + b.w > z.x;
+  const others = state.zones.filter(sameCols), oldB = z.y + z.h;
+  if (dh > 0){
+    let nh = Math.min(z.h + dh, 9 - z.y);
+    others.forEach(b => { if (b.y >= oldB) nh = Math.min(nh, b.y + b.h - 1 - z.y); }); // zones below keep at least one row
+    if (nh <= z.h) return false;
+    const newB = z.y + nh;
+    others.forEach(b => { if (b.y >= oldB && b.y < newB){ const bottom = b.y + b.h; b.y = newB; b.h = bottom - newB; } });
+    z.h = nh; return true;
+  }
+  const nh = Math.max(1, z.h + dh); if (nh === z.h) return false;
+  const newB = z.y + nh;
+  others.forEach(b => {
+    if (b.y !== oldB) return;
+    const blocked = state.zones.some(o => o !== z && o !== b && o.x < b.x + b.w && o.x + o.w > b.x && o.y < oldB && o.y + o.h > newB);
+    if (!blocked){ b.h += b.y - newB; b.y = newB; }
+  });
+  z.h = nh; return true;
+}
 
 /* ---------- Render ---------- */
 let live = [], editing = false, selId = null, firstRender = true;
@@ -1668,8 +2379,21 @@ function tickSecond(){ live.forEach(l => l.second && l.second()); }
 // Animated zones redraw at 30 fps (4 fps in Light motion); only the ticker runs at full rate.
 let last = performance.now(), lastDraw = 0;
 const calm = () => reduce || state.motion === 'light';
+const perf = {on:false, frames:0, worst:0, since:0, el:null};
+function togglePerf(){
+  perf.on = !perf.on; perf.el = $('#fps'); perf.el.hidden = !perf.on;
+  perf.since = performance.now(); perf.frames = 0; perf.worst = 0; perf.el.textContent = 'Measuring…';
+}
 function loop(t){
-  const dt = Math.min(50, t - last); last = t;
+  const raw = t - last;
+  const dt = Math.min(50, raw); last = t;
+  if (perf.on){
+    perf.frames++; perf.worst = Math.max(perf.worst, raw);
+    if (t - perf.since >= 1000){
+      perf.el.textContent = `${Math.round(perf.frames * 1000 / (t - perf.since))} fps\nslowest frame ${Math.round(perf.worst)} ms\nmotion: ${state.motion || 'full'}  ·  press P to hide`;
+      perf.frames = 0; perf.worst = 0; perf.since = t;
+    }
+  }
   tickerFrame(t, dt);
   const every = reduce ? 1000 : state.motion === 'light' ? 250 : 33;
   if (t - lastDraw >= every){ const fdt = Math.min(250, t - lastDraw); lastDraw = t; live.forEach(l => l.frame && l.frame(t, fdt)); }
@@ -1889,6 +2613,7 @@ function fullscreen(){
   Promise.resolve(req.call(el)).catch(() => toast('Full screen was blocked here. Open the artifact on its own page, or press F11.'));
 }
 $('#bFull').addEventListener('click', fullscreen);
+$('#bPerf').addEventListener('click', togglePerf);
 const mo = $('#bMotion');
 mo.value = state.motion || 'full'; document.body.classList.toggle('light', mo.value === 'light');
 mo.addEventListener('change', () => { state.motion = mo.value; document.body.classList.toggle('light', mo.value === 'light'); save(); });
@@ -1910,9 +2635,11 @@ $('#bDone').addEventListener('click', closeDrawer);
 $('#bNews').addEventListener('click', openNewsSettings);
 
 addEventListener('keydown', e => {
-  if (e.target.matches('input, textarea, select')) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (e.target.matches('input, textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === 'e' || e.key === 'E') setEditing(!editing);
   else if (e.key === 'f' || e.key === 'F') fullscreen();
+  else if (e.key === 'p' || e.key === 'P') togglePerf();
   else if (e.key === 'Escape'){ if (drawer.classList.contains('open')) closeDrawer(); else if (editing) setEditing(false); }
 });
 
@@ -1922,6 +2649,8 @@ function wake(){
   idleT = setTimeout(() => { if (!editing && !drawer.classList.contains('open')) document.body.classList.remove('show'); }, 3000);
 }
 ['mousemove','mousedown','keydown','touchstart'].forEach(ev => addEventListener(ev, wake, {passive:true}));
+
+document.addEventListener('change', e => { if (e.target.matches('#hud select, .catpick')) e.target.blur(); });
 
 /* ---------- Boot ---------- */
 const gd = $('#guides'); for (let i = 0; i < 96; i++) gd.appendChild(document.createElement('i'));

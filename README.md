@@ -62,16 +62,18 @@ Each newsfeed also shows a QR code for the current story, so you can scan it wit
 
 ## Clock
 
-In the clock zone's settings, list **Other places**, one per line: a city like `Tokyo` or `Paris, France` (add a state or country after a comma if the name is common), or a time zone like `UTC`. Each place shows its local time, "Tomorrow" or "Yesterday" when the date differs from yours, and its current weather. Fill in **Your city** to show your own weather beside the date. Make the zone taller if your places don't all fit.
+In the clock zone's settings, list **Other places**, one per line: a city like `Tokyo` or `Paris, France` (add a state or country after a comma if the name is common), or a time zone like `UTC`. Places show two per row and you can add as many as you like. Each shows its local time, its current weather, and "Tomorrow" or "Yesterday" when the date differs from yours. The zone grows to fit them, moving the zone below it down; turn that off with **Resize the zone to fit all places** if you'd rather set the size yourself. Fill in **Your city** to show your own weather beside the date.
 
 ## Other zones
 
+- **World map quotes**: a rotating quote sits between the map and its caption. In the map's settings, list authors, poets, books or people, one per line; quotes come from their pages on Wikiquote (a free, sourced quotation collection). You can also type your own quotes as `quote — who said it`.
 - **World map**: dots on the countries in your current headlines (amber for big stories), earthquakes from the last day, and the space station's track. Land on the night side of Earth is dimmer.
-- **Weather**: type any city. Add a state or country after a comma if the name is common, like "Portland, Oregon".
+- **Weather**: pick a view from the menu in the zone's top-right corner (shown when you move the mouse), or set it in the zone's settings: your local conditions, or world rankings for heaviest snowfall, heaviest rain, strongest gusts, thunderstorm and lightning risk, hottest, coldest, biggest temperature swing, highest feels-like heat, strongest UV, worst air quality and dust storms, plus active disaster alerts (cyclones, floods, volcanoes, droughts, wildfires). Rankings can be for today or tomorrow's forecast, and can rotate through every view. Click a place to open it on a live weather map. Rankings cover about 120 places chosen for big cities and extreme weather. For local conditions, type your city, adding a state or country after a comma if the name is common, like "Portland, Oregon".
 - **Earthquakes**: magnitude 2.5+ from the last 24 hours (US Geological Survey).
-- **Rocket launches**: countdown to the next launch worldwide, plus the ones after it.
+- **Rocket launches**: countdown to the next launch worldwide, plus the ones after it. Click a launch to open its webcast (marked ▶) or its information page.
 - **Space weather**: geomagnetic activity (with aurora chances), solar wind and the latest solar flare (NOAA).
-- **Space station**: live position, altitude and speed.
+- **Space station**: hover over the ISS on the world map for its position, altitude and speed. (There's also a separate readout zone if you want one.)
+- **Reddit images**: a random image every 30 seconds from the top posts of subreddits you list, skipping NSFW posts. Click an image to open its post. Reddit blocks most free relays, so connect a Reddit app on Vercel (below) for this to work reliably.
 - **Events calendar**: paste public calendar links (.ics or webcal://) from venues, promoters, or your own Google Calendar.
 
 If a readout says it's unavailable, that service is briefly down; it retries on its own.
@@ -92,3 +94,5 @@ Open the newsfeed's settings (press **E**, click the newsfeed). At the bottom, *
 ## If it feels slow
 
 Use the **Motion** menu on the control bar. **Light** redraws the animated zones a few times a second instead of 30, turns off the pulsing rings and the scanline overlay, and keeps the ticker smooth. It's a good fit for a display you mostly glance at.
+
+Press **P** to show a frame-rate meter in the top-left corner. Around 60 fps is smooth; if it's well under 30, try **Motion: light**.
