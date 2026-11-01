@@ -1,8 +1,23 @@
 // Relays a public RSS/Atom feed (or web page) so the display can read it from the browser.
 const BLOCKED = /^(localhost|127\.|10\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|\[?::1\]?$|metadata)/i;
 
+// Only answers requests from your own display, so other sites can't use this relay.
+function fromOwnSite(req){
+  // Turn away requests that clearly come from another website; allow everything else,
+  // so your own display is never blocked by a missing header.
+  const h = req.headers || {};
+  const site = h['sec-fetch-site'];
+  if (site === 'cross-site' || site === 'same-site') return false;
+  const from = h.origin || h.referer;
+  if (!from) return true;
+  try {
+    const host = new URL(from).host;
+    return host === h.host || host === h['x-forwarded-host'];
+  } catch (e) { return true; }
+}
+
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  if (!fromOwnSite(req)) return res.status(403).send('This relay only serves its own display.');
   let target;
   try { target = new URL(req.query.url); } catch (e) { return res.status(400).send('Missing or invalid url'); }
   if (!/^https?:$/.test(target.protocol) || BLOCKED.test(target.hostname)) {
