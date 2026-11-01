@@ -141,3 +141,51 @@ Turning pages **off** goes straight back to your original layout. Your other pag
 ## Vertical monitors
 
 Use the **Layout** menu on the control bar: **horizontal**, **vertical** (an 8 × 12 grid for a portrait screen), or **match screen**, which switches by itself when the window is taller than it is wide. The first time you go vertical, your zones are arranged to fit automatically; rearrange them however you like. Each layout is remembered separately, so switching back and forth never undoes the other one. Rotating pages each get their own vertical layout too.
+
+## Showing the controls
+
+Moving the mouse only shows the cursor (and pauses rotating pages). To bring up the control bar, move the mouse to the **middle of the bottom edge**; for the page switch, the **middle of the top edge**. They stay while the mouse is over them. A zone's own small menus (the newsfeed category, the weather view, the map's layer buttons) appear when you hover that zone.
+
+## Screen settings (Display & alerts → Screen)
+
+- **Text size**: scales all text for reading from across the room, without changing the layout.
+- **Background**: plain, drifting stars, or stars with a faint nebula tinted to your theme, plus a strength slider.
+- **Keep the screen awake**: stops the computer dimming or sleeping while the display is open (Firefox 126 or newer). If it still sleeps, also set System Settings → Lock Screen → "Turn display off when inactive" to Never.
+- **Burn-in protection**: every 4 minutes everything shifts by a few pixels, too little to notice, so nothing sits in exactly the same spot for hours.
+- **Start-up sequence**: panels power on one by one with a scan line when the page loads.
+
+More themes are in the color menu: Belter teal and rust, Martian navy steel, and UN navy and white. Each zone can also have its own accent color (press E, click the zone, then **Accent color**).
+
+**Layout presets** (Display & alerts): one click swaps the main page for News-heavy, Space-heavy or Minimal, and you can save your own. **Undo** (control bar, or Cmd+Z) reverses layout changes, preset swaps and settings changes.
+
+## Start it automatically on the Mac
+
+This opens the display full screen in Firefox with no toolbars when you log in.
+
+1. Open **Automator** (in Applications), choose **New Document → Application**.
+2. In the search box on the left, type **Run Shell Script** and drag it into the right side.
+3. Replace the text in the box with this line, using your Vercel address:
+   `open -na "Firefox" --args --kiosk "https://YOUR-ADDRESS.vercel.app"`
+4. **File → Save**, name it `Ops Display`, and save it in **Applications**.
+5. Open **System Settings → General → Login Items**, click **+** under "Open at Login", and choose **Ops Display**.
+
+To test it now, double-click Ops Display in Applications. To leave kiosk mode, press **Cmd+Q**. If Firefox is already open when it runs, quit Firefox first, as kiosk mode applies to a fresh start. Drag the window to the TV before going full screen, or set the TV as the main display in System Settings → Displays.
+
+## Messages zone (Add zone → Shows: Messages)
+
+Shows your newest unread email, plus buttons that open Gmail, WhatsApp, Messenger and Instagram in a new tab. Instagram, Messenger and WhatsApp don't allow outside apps to read personal messages, so those are shortcuts only.
+
+### Connecting Gmail (one time)
+
+1. Your Google account needs **2-Step Verification** on (myaccount.google.com → Security).
+2. Go to **myaccount.google.com/apppasswords**, type a name like `Ops display`, and click **Create**. Copy the 16-letter password it shows.
+3. In Vercel, open your project → **Settings** → **Environment Variables** and add three, each as **Secret**:
+   - `MAIL_USER`: your Gmail address
+   - `MAIL_APP_PASSWORD`: the 16-letter app password
+   - `INBOX_KEY`: a passcode you make up (any long word or phrase)
+4. **Deployments** → **⋯** on the latest → **Redeploy**.
+5. On the display, press **E**, click the Messages zone, and type the same passcode into **Email passcode**.
+
+The passcode is saved only in that browser and is never included in setup links, so sharing the display's address never shares your email. Use **Show only who it's from** if other people can see the screen. To disconnect, delete the app password in your Google account.
+
+Other providers with app passwords (iCloud, Fastmail, Yahoo) work too: also add `MAIL_IMAP_HOST`, for example `imap.mail.me.com` for iCloud.

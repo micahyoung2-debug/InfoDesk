@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ops display · v33</title>
+<title>Ops display · v37</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@400;500;600&family=Saira:wght@200;300;400&display=swap" rel="stylesheet">
@@ -32,10 +32,11 @@ body{
   font-family:"Saira Semi Condensed","Arial Narrow",system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;
 }
-body:not(.show):not(.editing){cursor:none}
+body:not(.moving):not(.editing){cursor:none}
 
 /* Grid */
 .grid,.guides{
+  transform:translate(var(--sx,0px),var(--sy,0px));transition:transform 3s ease;
   position:fixed;
   inset:calc(env(safe-area-inset-top,0px) + 1.4vmin) 1.4vmin calc(env(safe-area-inset-bottom,0px) + 1.4vmin + var(--tick,0px));
   display:grid;
@@ -72,7 +73,7 @@ body:not(.show):not(.editing){cursor:none}
 .hd{
   display:flex;align-items:center;gap:1vmin;
   padding:1.1vmin 1.6vmin .6vmin 2.2vmin;
-  font:500 1.35vmin/1 "Saira Semi Condensed",sans-serif;
+  font:500 calc(1.35vmin*var(--ts,1))/1 "Saira Semi Condensed",sans-serif;
   letter-spacing:.24em;text-transform:uppercase;color:var(--dim);
   white-space:nowrap;
 }
@@ -107,29 +108,41 @@ body:not(.show):not(.editing){cursor:none}
 .editing .zone.dragging .in::after{content:attr(data-size);font-size:15px}
 .zone:focus-visible{outline:2px solid var(--hi);outline-offset:2px}
 
-body.boot .zone{animation:boot .9s steps(1,end) both;animation-delay:calc(var(--i) * 90ms)}
-@keyframes boot{0%{opacity:0}25%{opacity:.7}35%{opacity:.15}55%{opacity:.9}65%{opacity:.4}100%{opacity:1}}
+/* Start-up sequence: panels power on one by one, each swept by a scan line, then flicker to full */
+body.boot .zone{animation:bootOn .9s cubic-bezier(.3,0,.2,1) both;animation-delay:calc(.5s + var(--i) * 140ms)}
+body.boot .zone .in::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;z-index:6;background:var(--hi);
+  box-shadow:0 0 12px 2px var(--accent);animation:bootScan .75s ease-in both;animation-delay:calc(.5s + var(--i) * 140ms)}
+body.boot .ticker{animation:bootOn .8s ease both;animation-delay:.3s}
+@keyframes bootOn{0%{opacity:0;clip-path:inset(0 0 100% 0)}70%{opacity:1;clip-path:inset(0 0 0 0)}78%{opacity:.35}86%{opacity:1}92%{opacity:.7}100%{opacity:1;clip-path:none}}
+@keyframes bootScan{0%{transform:translateY(0);opacity:1}95%{opacity:1}100%{transform:translateY(var(--zh,300px));opacity:0}}
+.bootmsg{position:fixed;inset:0;z-index:25;display:grid;place-items:center;pointer-events:none;
+  font:500 calc(2vmin*var(--ts,1))/1.6 "Saira Semi Condensed",sans-serif;letter-spacing:.35em;text-transform:uppercase;color:var(--accent);text-align:center;
+  animation:bootMsg 2.2s ease both}
+.bootmsg b{display:block;font-weight:500;color:var(--hi);font-size:1.3em}
+@keyframes bootMsg{0%{opacity:0}15%{opacity:1}70%{opacity:1}100%{opacity:0;visibility:hidden}}
+body:not(.boot) .bootmsg{display:none}
 
 /* Clock & countdown */
 .clock{height:100%;display:flex;flex-direction:column;justify-content:center;gap:2.5cqh}
 .big{
-  font:200 min(44cqh,17cqw)/.95 "Saira",sans-serif;color:var(--hi);
+  font:200 min(calc(44cqh*var(--ts,1)),calc(17cqw*var(--ts,1)))/.95 "Saira",sans-serif;color:var(--hi);
   font-variant-numeric:tabular-nums;letter-spacing:.01em;white-space:nowrap;
   text-shadow:0 0 3cqh var(--glow);
 }
 .big .sec{color:var(--accent);opacity:.75}
 .big .u{font-size:.45em;color:var(--dim);margin-left:.05em}
-.date{font:400 min(10cqh,4.4cqw)/1.2 "Saira Semi Condensed",sans-serif;color:var(--accent);letter-spacing:.16em;text-transform:uppercase}
-.extras{display:flex;flex-wrap:wrap;gap:.3em 5cqw;font-size:min(9cqh,3.6cqw);color:var(--dim);letter-spacing:.06em}
+.date{font:400 min(calc(10cqh*var(--ts,1)),calc(4.4cqw*var(--ts,1)))/1.2 "Saira Semi Condensed",sans-serif;color:var(--accent);letter-spacing:.16em;text-transform:uppercase}
+.extras{display:flex;flex-wrap:wrap;gap:.3em 5cqw;font-size:min(calc(9cqh*var(--ts,1)),calc(3.6cqw*var(--ts,1)));color:var(--dim);letter-spacing:.06em}
 .extras b{font-weight:400;color:var(--text);font-variant-numeric:tabular-nums;margin-left:.4em}
 
 /* News */
-.news{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;row-gap:1.8cqh;padding-top:1cqh}
-.stamp{font-size:max(11px,min(4.2cqh,4cqw));color:var(--accent);letter-spacing:.14em;font-variant-numeric:tabular-nums}
-.now{display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;min-height:0;align-self:stretch;text-decoration:none;margin:0;font:300 min(8cqh,6.2cqw)/1.28 "Saira",sans-serif;color:var(--hi);text-wrap:pretty}
+.news{height:100%;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;row-gap:1.8cqh;padding-top:1cqh}
+.news>*{min-width:0}
+.stamp{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:max(11px,min(calc(4.2cqh*var(--ts,1)),calc(4cqw*var(--ts,1))));color:var(--accent);letter-spacing:.14em;font-variant-numeric:tabular-nums}
+.now{display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;min-height:0;align-self:stretch;text-decoration:none;margin:0;font:300 min(calc(8cqh*var(--ts,1)),calc(6.2cqw*var(--ts,1)))/1.28 "Saira",sans-serif;color:var(--hi);text-wrap:pretty}
 .now[href]{cursor:pointer}
 .now.typing::after{content:"";display:inline-block;width:.5em;height:.9em;margin-left:.08em;vertical-align:-.1em;background:var(--accent)}
-.queue{list-style:none;margin:auto 0 0;padding:0;font-size:max(11px,min(4.6cqh,4.2cqw));color:var(--dim)}
+.queue{list-style:none;margin:auto 0 0;padding:0;font-size:max(11px,min(calc(4.6cqh*var(--ts,1)),calc(4.2cqw*var(--ts,1))));color:var(--dim)}
 .now[href]:hover{text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:.15em;color:#fff}
 .queue li a{display:block;color:inherit;text-decoration:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .queue li a[href]:hover{color:var(--hi)}
@@ -137,9 +150,9 @@ body.boot .zone{animation:boot .9s steps(1,end) both;animation-delay:calc(var(--
 .editing .now,.editing .queue a{pointer-events:none}
 .editing .now{pointer-events:none}
 .catpick{position:absolute;top:0;right:2.2vmin;z-index:2;font-size:13px;padding:6px 8px;opacity:0;pointer-events:none;transition:opacity .35s}
-.show:not(.editing) .catpick{opacity:1;pointer-events:auto}
+.moving:not(.editing) .zone:hover .catpick,.catpick:focus{opacity:1;pointer-events:auto}
 .src{color:var(--accent);margin-right:.7em}
-.status{font-size:max(10px,min(3.4cqh,3.2cqw));color:var(--dim);opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status{font-size:max(10px,min(calc(3.4cqh*var(--ts,1)),calc(3.2cqw*var(--ts,1))));color:var(--dim);opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .queue li{border-top:1px solid var(--line);padding:.6em 0}
 @container (max-height: 330px){ .queue li:nth-child(n+3){display:none} }
 @container (max-height: 250px){ .queue li:nth-child(n+2){display:none} }
@@ -147,10 +160,10 @@ body.boot .zone{animation:boot .9s steps(1,end) both;animation-delay:calc(var(--
 
 /* Telemetry */
 /* Notes */
-.notes{font:300 max(12px,min(7cqh,6cqw))/1.45 "Saira",sans-serif;color:var(--text);white-space:pre-wrap;overflow:hidden;height:100%;padding-top:1cqh}
+.notes{font:300 max(12px,min(calc(7cqh*var(--ts,1)),calc(6cqw*var(--ts,1))))/1.45 "Saira",sans-serif;color:var(--text);white-space:pre-wrap;overflow:hidden;height:100%;padding-top:1cqh}
 
 /* Image */
-.empty-msg{height:100%;display:grid;place-items:center;text-align:center;color:var(--dim);font-size:max(12px,min(6cqh,5cqw));padding:1em}
+.empty-msg{height:100%;display:grid;place-items:center;text-align:center;color:var(--dim);font-size:max(12px,min(calc(6cqh*var(--ts,1)),calc(5cqw*var(--ts,1))));padding:1em}
 
 .no-zones{position:fixed;inset:0;display:grid;place-items:center;color:var(--dim);font-size:20px;pointer-events:none}
 
@@ -161,7 +174,7 @@ body.boot .zone{animation:boot .9s steps(1,end) both;animation-delay:calc(var(--
   background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);
   opacity:0;pointer-events:none;transition:opacity .35s;
 }
-.show .hud,.editing .hud{opacity:1;pointer-events:auto}
+.show-hud .hud,.editing .hud{opacity:1;pointer-events:auto}
 #bColor{width:44px;height:36px;padding:3px;background:var(--panel);border:1px solid var(--line);cursor:pointer}
 #bColor[hidden]{display:none}
 button,select,.btn{
@@ -209,9 +222,9 @@ select{background:var(--panel)}
 .clock .date{display:flex;flex-wrap:wrap;gap:0 1.2em}
 .clock .hw{color:var(--text);letter-spacing:.04em;text-transform:none}
 .clock.has-pl{justify-content:flex-start;gap:1vmin;padding-top:.6vmin}
-.clock.has-pl .big{font-size:min(7.5vmin,16cqw)}
-.clock.has-pl .date{font-size:max(11px,min(1.7vmin,4cqw))}
-.places{display:grid;grid-template-columns:1fr 1fr;gap:.6vmin 1.8vmin;font-size:max(11px,1.55vmin);margin-top:.4vmin}
+.clock.has-pl .big{font-size:min(calc(7.5vmin*var(--ts,1)),calc(16cqw*var(--ts,1)))}
+.clock.has-pl .date{font-size:max(11px,min(calc(1.7vmin*var(--ts,1)),calc(4cqw*var(--ts,1))))}
+.places{display:grid;grid-template-columns:1fr 1fr;gap:.6vmin 1.8vmin;font-size:max(11px,calc(1.55vmin*var(--ts,1)));margin-top:.4vmin}
 @container (max-width: 240px){ .places{grid-template-columns:1fr} }
 .pl{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"n t" "w d";gap:.1em .6em;align-items:baseline;border-top:1px solid var(--line);padding:.45em 0 .1em;min-width:0}
 .pn{grid-area:n;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -232,7 +245,7 @@ body.dissolving .zone *,body.dissolving .zone *::before,body.dissolving .zone *:
 .pagebar{position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);left:50%;transform:translateX(-50%);z-index:21;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;
   padding:6px;background:color-mix(in srgb,var(--panel) 92%,transparent);border:1px solid var(--line);opacity:0;pointer-events:none;transition:opacity .35s;max-width:calc(100vw - 24px)}
 .pagebar[hidden]{display:none}
-.show .pagebar,.editing .pagebar{opacity:1;pointer-events:auto}
+.show-pages .pagebar,.editing .pagebar{opacity:1;pointer-events:auto}
 .pagebar button{font-size:13px;padding:6px 10px}
 .pagebar button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
 .pb-edit{display:none;gap:6px}
@@ -240,6 +253,12 @@ body.dissolving .zone *,body.dissolving .zone *::before,body.dissolving .zone *:
 .editing .pb-edit{display:flex}
 .pb-name{font:500 13px/1 "Saira Semi Condensed",sans-serif;background:var(--bg);color:var(--text);border:1px solid var(--accent);padding:6px 8px;width:140px}
 @media (prefers-reduced-motion: reduce){ .grid.dissolve-in,.grid.dissolve-out{transition:none} }
+/* Living background */
+.bgfield{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.bgfield[hidden]{display:none}
+.grid,.guides,.ticker{z-index:1}
+.acc input[type=color]{width:52px;height:36px;padding:3px;background:var(--panel);border:1px solid var(--line);cursor:pointer}
+#bUndo:disabled{opacity:.4;cursor:default}
 /* Dimming, display controls, setup prompt */
 .dim{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:19;transition:opacity 1.5s}
 .dimctl{display:none;align-items:center;gap:8px;font:500 13px/1 "Saira Semi Condensed",sans-serif;color:var(--text);border:1px solid var(--line);padding:0 10px}
@@ -258,15 +277,15 @@ body.dissolving .zone *,body.dissolving .zone *::before,body.dissolving .zone *:
 /* Ship's radio */
 .radio{height:100%;display:flex;flex-direction:column;justify-content:center;gap:2cqh}
 .rn-wrap{min-width:0}
-.radio select.rn{max-width:100%;font:500 max(11px,min(6.5cqh,4.6cqw))/1.2 "Saira Semi Condensed",sans-serif;letter-spacing:.04em;color:var(--accent);
+.radio select.rn{max-width:100%;font:500 max(11px,min(calc(6.5cqh*var(--ts,1)),calc(4.6cqw*var(--ts,1))))/1.2 "Saira Semi Condensed",sans-serif;letter-spacing:.04em;color:var(--accent);
   background:transparent;border:1px solid transparent;padding:.2em 1.4em .2em .3em;margin-left:-.3em;cursor:pointer;text-overflow:ellipsis;
   appearance:none;-webkit-appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--accent) 50%),linear-gradient(135deg,var(--accent) 50%,transparent 50%);
   background-position:calc(100% - .75em) 55%,calc(100% - .45em) 55%;background-size:.3em .3em;background-repeat:no-repeat}
 .radio select.rn:hover,.radio select.rn:focus-visible{border-color:var(--line)}
 .radio select.rn option,.radio select.rn optgroup{color:var(--text);background:var(--panel)}
-.rnp{font:300 max(12px,min(9cqh,6cqw))/1.25 "Saira",sans-serif;color:var(--hi);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.rnp{font:300 max(12px,min(calc(9cqh*var(--ts,1)),calc(6cqw*var(--ts,1))))/1.25 "Saira",sans-serif;color:var(--hi);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .rctl{display:flex;align-items:center;gap:3cqw}
-.rplay{flex:none;font-size:max(12px,min(6cqh,4cqw))}
+.rplay{flex:none;font-size:max(12px,min(calc(6cqh*var(--ts,1)),calc(4cqw*var(--ts,1))))}
 .rvol{flex:1;min-width:40px;accent-color:var(--accent)}
 .eq{display:flex;align-items:flex-end;gap:3px;height:max(14px,8cqh);width:max(30px,10cqw)}
 .eq i{flex:1;background:var(--accent);height:15%;opacity:.5}
@@ -278,11 +297,11 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 @container (max-height: 120px){
   .radio{flex-direction:row;align-items:center;gap:2.5cqw}
   .radio .rn{flex:none;max-width:30%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .rnp{flex:1;min-width:0;-webkit-line-clamp:1;font-size:max(12px,min(34cqh,2.6cqw))}
+  .rnp{flex:1;min-width:0;-webkit-line-clamp:1;font-size:max(12px,min(calc(34cqh*var(--ts,1)),calc(2.6cqw*var(--ts,1))))}
   .rctl{flex:none;width:min(40%,340px)}
 }
 /* Powder report */
-.pow{height:100%;display:flex;flex-direction:column;justify-content:space-evenly;font-size:max(11px,min(5.6cqh,3.6cqw))}
+.pow{height:100%;display:flex;flex-direction:column;justify-content:space-evenly;font-size:max(11px,min(calc(5.6cqh*var(--ts,1)),calc(3.6cqw*var(--ts,1))))}
 .pow-h,.pow-r{display:grid;grid-template-columns:minmax(0,1.4fr) .6fr .6fr 1.6fr;gap:0 1em;align-items:center}
 .pow-h{color:var(--dim);font-size:.8em;letter-spacing:.06em}
 .pow-r{border-top:1px solid var(--line);padding:.35em 0}
@@ -297,7 +316,7 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 /* Live sun */
 .sun{position:absolute;inset:0 2.2vmin 3.2em;display:block;background:#000}
 .sun img{width:100%;height:100%;object-fit:contain;display:block}
-.sun-cap{position:absolute;left:2.2vmin;right:2.2vmin;bottom:1.2vmin;display:flex;justify-content:space-between;gap:1em;font-size:max(11px,min(4.4cqh,3.2cqw));white-space:nowrap;overflow:hidden}
+.sun-cap{position:absolute;left:2.2vmin;right:2.2vmin;bottom:1.2vmin;display:flex;justify-content:space-between;gap:1em;font-size:max(11px,min(calc(4.4cqh*var(--ts,1)),calc(3.2cqw*var(--ts,1))));white-space:nowrap;overflow:hidden}
 .sun-cap b{font-weight:500;color:var(--accent)} .sun-cap span{color:var(--dim);overflow:hidden;text-overflow:ellipsis}
 .editing .sun{pointer-events:none}
 /* Tonight's sky */
@@ -317,12 +336,24 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 .editing .neo-plot canvas{pointer-events:none}
 /* On this day */
 .otd{height:100%;display:flex;flex-direction:column;gap:1.5cqh;padding-top:1cqh}
-.otd-y{font:200 min(24cqh,14cqw)/1 "Saira",sans-serif;color:var(--hi);font-variant-numeric:tabular-nums;text-shadow:0 0 3cqh var(--glow)}
-.otd-t{font:300 max(12px,min(7cqh,5cqw))/1.35 "Saira",sans-serif;color:var(--text);text-decoration:none;overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}
+.otd-y{font:200 min(calc(24cqh*var(--ts,1)),calc(14cqw*var(--ts,1)))/1 "Saira",sans-serif;color:var(--hi);font-variant-numeric:tabular-nums;text-shadow:0 0 3cqh var(--glow)}
+.otd-t{font:300 max(12px,min(calc(7cqh*var(--ts,1)),calc(5cqw*var(--ts,1))))/1.35 "Saira",sans-serif;color:var(--text);text-decoration:none;overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}
 .otd-t[href]:hover{color:var(--hi);text-decoration:underline;text-decoration-color:var(--accent)}
 .editing .otd-t{pointer-events:none}
+/* Messages */
+.inbox{height:100%;display:flex;flex-direction:column;gap:1.4cqh;padding-top:1cqh;min-height:0}
+.ib-list{list-style:none;margin:0;padding:0;flex:1;min-height:0;overflow:hidden;font-size:calc(max(11px,min(5.2cqh,4cqw))*var(--ts,1))}
+.ib-list a{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr) auto;gap:.8em;align-items:baseline;border-top:1px solid var(--line);padding:.45em 0;color:var(--text);text-decoration:none}
+.ib-list a:hover{color:var(--hi)}
+.ib-list b{font-weight:500;color:var(--hi);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:14em}
+.ib-list span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--dim)}
+.ib-list time{color:var(--accent);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ib-apps{display:flex;gap:6px;flex-wrap:wrap}
+.ib-apps a{font:500 calc(max(11px,min(4.6cqh,3.4cqw))*var(--ts,1))/1 "Saira Semi Condensed",sans-serif;letter-spacing:.06em;color:var(--text);text-decoration:none;border:1px solid var(--line);padding:.5em .8em}
+.ib-apps a:hover{border-color:var(--accent);color:var(--hi)}
+.editing .inbox a{pointer-events:none}
 /* Event log */
-.evlog{list-style:none;margin:0;padding:.5cqh 0 0;height:100%;overflow:hidden;font-size:max(11px,min(5cqh,3.8cqw))}
+.evlog{list-style:none;margin:0;padding:.5cqh 0 0;height:100%;overflow:hidden;font-size:max(11px,min(calc(5cqh*var(--ts,1)),calc(3.8cqw*var(--ts,1))))}
 .evlog li{display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:.7em;align-items:baseline;border-top:1px solid var(--line);padding:.4em 0}
 .evlog time{color:var(--dim);font-variant-numeric:tabular-nums;white-space:nowrap}
 .evlog i{font-style:normal;color:var(--accent)}
@@ -332,7 +363,7 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 .evlog .evl-none{display:block;color:var(--dim)}
 .editing .evlog a{pointer-events:none}
 /* Weather views */
-.wxr{list-style:none;margin:.4cqh 0 0;padding:0;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-evenly;font-size:max(11px,min(6.4cqh,5cqw))}
+.wxr{list-style:none;margin:.4cqh 0 0;padding:0;flex:1;min-height:0;display:flex;flex-direction:column;justify-content:space-evenly;font-size:max(11px,min(calc(6.4cqh*var(--ts,1)),calc(5cqw*var(--ts,1))))}
 .wxr li{position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:0 .7em;padding:.2em 0 .35em}
 .wxr i{width:.7em;height:.7em;border-radius:50%;background:var(--wx);opacity:var(--a);box-shadow:0 0 .6em color-mix(in srgb,var(--wx) 60%,transparent)}
 .wxr a{color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
@@ -344,10 +375,10 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 .wxr li.warn b{color:var(--warn)}
 .wxr .wxr-none{display:block;color:var(--dim)}
 .wxv{height:100%}
-.wxg-h{font-size:max(10px,min(5.2cqh,4cqw));letter-spacing:.06em;padding-right:9em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wxg-h{font-size:max(10px,min(calc(5.2cqh*var(--ts,1)),calc(4cqw*var(--ts,1))));letter-spacing:.06em;padding-right:9em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wxg-top{display:flex;align-items:baseline;gap:4cqw;color:inherit;text-decoration:none;min-width:0}
 .wxg-top[href]:hover .rd-txt{text-decoration:underline;text-decoration-color:var(--accent)}
-.wxg .rd-big{font-size:min(24cqh,13cqw);flex:none}
+.wxg .rd-big{font-size:min(calc(24cqh*var(--ts,1)),calc(13cqw*var(--ts,1)));flex:none}
 .wxg .rd-txt{color:var(--hi);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .wxg .rd-list{margin-top:0}
 .wxg .status{margin-top:auto}
@@ -356,7 +387,7 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 /* Quotes under the map */
 .map-quote{position:absolute;top:.4vmin;left:2.2vmin;right:2.2vmin;margin:0;height:5.6em;display:flex;flex-direction:column;justify-content:flex-start;gap:.35em;
   padding-left:1.1em;border-left:2px solid var(--accent);pointer-events:none;
-  font:300 max(12px,min(4.2cqh,2.3cqw))/1.3 "Saira",sans-serif;color:var(--hi);transition:opacity .7s ease}
+  font:300 max(12px,min(calc(4.2cqh*var(--ts,1)),calc(2.3cqw*var(--ts,1))))/1.3 "Saira",sans-serif;color:var(--hi);transition:opacity .7s ease}
 .map-quote blockquote{margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;text-wrap:pretty;max-width:70em}
 .map-quote blockquote:not(:empty)::before{content:"“"} .map-quote blockquote:not(:empty)::after{content:"”"}
 .map-quote figcaption{font:400 .8em/1.2 "Saira Semi Condensed",sans-serif;color:var(--accent);letter-spacing:.06em}
@@ -364,16 +395,16 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 .map-quote[hidden]{display:none}
 /* Map toggles and radar credit */
 .map-tools{position:absolute;right:2.2vmin;z-index:3;display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .35s}
-.show:not(.editing) .map-tools{opacity:1;pointer-events:auto}
+.moving:not(.editing) .zone:hover .map-tools{opacity:1;pointer-events:auto}
 .map-tools button{font-size:12px;padding:5px 9px;background:var(--panel)}
 .map-tools button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
-.map-credit{position:absolute;right:2.2vmin;font-size:max(9px,min(3cqh,1.6cqw));color:var(--dim);text-decoration:none;z-index:2}
+.map-credit{position:absolute;right:2.2vmin;font-size:max(9px,min(calc(3cqh*var(--ts,1)),calc(1.6cqw*var(--ts,1))));color:var(--dim);text-decoration:none;z-index:2}
 .map-credit:hover{color:var(--hi);text-decoration:underline}
 .map-credit[hidden]{display:none}
 .editing .map-credit{pointer-events:none}
 /* Map hover card */
 .map-tip{position:absolute;z-index:4;display:flex;flex-direction:column;gap:.25em;padding:.7em 1em;pointer-events:none;
-  background:var(--panel);border:1px solid var(--accent);font-size:max(12px,1.4vmin);color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
+  background:var(--panel);border:1px solid var(--accent);font-size:max(12px,calc(1.4vmin*var(--ts,1)));color:var(--text);font-variant-numeric:tabular-nums;white-space:nowrap}
 .map-tip b{color:var(--hi);font-weight:500;letter-spacing:.04em}
 .map-tip{max-width:min(46ch,70%);white-space:normal}
 .map-tip .tip-story{color:var(--text);border-top:1px solid var(--line);padding-top:.3em;line-height:1.3}
@@ -389,10 +420,10 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 .gal img.on{opacity:1}
 .gal::after{content:"";position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px)}
 .gcap{position:absolute;left:0;right:0;bottom:0;z-index:1;padding:4cqh 1em 1.4cqh;background:linear-gradient(transparent,rgba(0,0,0,.8));
-  color:var(--hi);font-size:max(11px,min(5.4cqh,3.6cqw));text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  color:var(--hi);font-size:max(11px,min(calc(5.4cqh*var(--ts,1)),calc(3.6cqw*var(--ts,1))));text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .gcap b{color:var(--accent);font-weight:500;margin-right:.8em}
 .gcap[href]:hover{text-decoration:underline}
-.gmsg{position:absolute;inset:0;z-index:1;display:grid;place-items:center;text-align:center;padding:1.2em;color:var(--dim);font-size:max(11px,min(5.5cqh,4.6cqw))}
+.gmsg{position:absolute;inset:0;z-index:1;display:grid;place-items:center;text-align:center;padding:1.2em;color:var(--dim);font-size:max(11px,min(calc(5.5cqh*var(--ts,1)),calc(4.6cqw*var(--ts,1))))}
 .gmsg[hidden]{display:none}
 
 /* News extras */
@@ -408,24 +439,24 @@ body.ticker-on{--tick:5.8vmin}
 .nl .queue{margin:0}
 .news-qr{flex:none;width:min(24cqh,22cqw);display:flex;flex-direction:column;align-items:center;gap:.8cqh}
 .news-qr canvas{width:100%;height:auto;display:block;image-rendering:pixelated}
-.news-qr span{font-size:max(10px,min(3.2cqh,3cqw));color:var(--dim);letter-spacing:.06em}
+.news-qr span{font-size:max(10px,min(calc(3.2cqh*var(--ts,1)),calc(3cqw*var(--ts,1))));color:var(--dim);letter-spacing:.06em}
 .news.hot .now,.news.hot .stamp,.queue li.hot{color:var(--warn)}
 .news.watch .now{text-shadow:0 0 2.5cqh var(--glow)}
 .news.watch .stamp{color:var(--hi)}
 .editing .map-cap{pointer-events:none}
 
 /* Ticker */
-.ticker{contain:layout paint;position:fixed;left:1.4vmin;right:1.4vmin;bottom:calc(env(safe-area-inset-bottom,0px) + 1.4vmin);height:4.6vmin;display:none;z-index:5;
+.ticker{contain:layout paint;transform:translate(var(--sx,0px),var(--sy,0px));transition:transform 3s ease;position:fixed;left:1.4vmin;right:1.4vmin;bottom:calc(env(safe-area-inset-bottom,0px) + 1.4vmin);height:4.6vmin;display:none;z-index:5;
   background:var(--panel);border-top:1px solid var(--accent);border-bottom:1px solid var(--line)}
 .ticker-on .ticker{display:flex}
 .tk-label{flex:none;display:flex;align-items:center;padding:0 3.2vmin 0 2vmin;background:var(--accent);color:var(--bg);
-  font:600 1.5vmin/1 "Saira Semi Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;
+  font:600 calc(1.5vmin*var(--ts,1))/1 "Saira Semi Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;
   clip-path:polygon(0 0,100% 0,calc(100% - 1.6vmin) 100%,0 100%)}
 .tk-view{flex:1;position:relative;overflow:hidden}
 .tk-view::before,.tk-view::after{content:"";position:absolute;top:0;bottom:0;width:4%;z-index:1;pointer-events:none}
 .tk-view::before{left:0;background:linear-gradient(90deg,var(--panel),transparent)}
 .tk-view::after{right:0;background:linear-gradient(-90deg,var(--panel),transparent)}
-.tk-track{position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;white-space:nowrap;will-change:transform;font:300 2.2vmin/1 "Saira",sans-serif;color:var(--text)}
+.tk-track{position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;white-space:nowrap;will-change:transform;font:300 calc(2.2vmin*var(--ts,1))/1 "Saira",sans-serif;color:var(--text)}
 .tk-item{padding:0 1.4vmin;color:inherit;text-decoration:none}
 .tk-item[href]:hover{color:var(--hi);text-decoration:underline;text-decoration-color:var(--accent)}
 .tk-item.hot{color:var(--warn)}
@@ -439,23 +470,23 @@ body.ticker-on{--tick:5.8vmin}
   box-shadow:0 0 5vmin color-mix(in srgb,var(--warn) 35%,transparent);
   transform:translate(-50%,calc(-100% - 6vmin));transition:transform .6s cubic-bezier(.2,.8,.2,1)}
 .alert.on{transform:translate(-50%,0)}
-.alert .k{font:600 1.4vmin/1 "Saira Semi Condensed",sans-serif;letter-spacing:.22em;text-transform:uppercase;color:var(--warn)}
-.alert .h{font:300 2.8vmin/1.25 "Saira",sans-serif}
+.alert .k{font:600 calc(1.4vmin*var(--ts,1))/1 "Saira Semi Condensed",sans-serif;letter-spacing:.22em;text-transform:uppercase;color:var(--warn)}
+.alert .h{font:300 calc(2.8vmin*var(--ts,1))/1.25 "Saira",sans-serif}
 
 /* Data readouts */
 .rd{height:100%;display:flex;flex-direction:column;gap:2.2cqh;padding-top:1cqh;min-height:0}
-.rd-big{font:200 min(28cqh,15cqw)/1 "Saira",sans-serif;color:var(--hi);font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 0 3cqh var(--glow)}
+.rd-big{font:200 min(calc(28cqh*var(--ts,1)),calc(15cqw*var(--ts,1)))/1 "Saira",sans-serif;color:var(--hi);font-variant-numeric:tabular-nums;white-space:nowrap;text-shadow:0 0 3cqh var(--glow)}
 .rd-big small{font-size:.38em;color:var(--dim);margin-left:.3em;font-weight:300}
 .rd-big .sec{color:var(--accent);opacity:.75}
-.rd-sub{font-size:max(11px,min(6.5cqh,5.2cqw));color:var(--accent);letter-spacing:.04em;line-height:1.3}
-.rd-txt{font-size:max(11px,min(6.5cqh,5.4cqw));color:var(--text);line-height:1.3}
+.rd-sub{font-size:max(11px,min(calc(6.5cqh*var(--ts,1)),calc(5.2cqw*var(--ts,1))));color:var(--accent);letter-spacing:.04em;line-height:1.3}
+.rd-txt{font-size:max(11px,min(calc(6.5cqh*var(--ts,1)),calc(5.4cqw*var(--ts,1))));color:var(--text);line-height:1.3}
 .rd-txt.nm{color:var(--hi)}
-.rd-list{list-style:none;margin:auto 0 0;padding:0;font-size:max(10px,min(5cqh,4.4cqw));color:var(--dim)}
+.rd-list{list-style:none;margin:auto 0 0;padding:0;font-size:max(10px,min(calc(5cqh*var(--ts,1)),calc(4.4cqw*var(--ts,1))));color:var(--dim)}
 .rd-list li{display:flex;gap:1em;justify-content:space-between;border-top:1px solid var(--line);padding:.5em 0;white-space:nowrap}
 .rd-list li span{overflow:hidden;text-overflow:ellipsis}
 .rd-list b{font-weight:400;color:var(--text);font-variant-numeric:tabular-nums}
 .rd-list li.warn span,.rd-list li.warn b{color:var(--warn)}
-.rd-grid{display:grid;grid-template-columns:1fr 1fr;gap:3cqh 5cqw;font-size:max(10px,min(5cqh,4.6cqw))}
+.rd-grid{display:grid;grid-template-columns:1fr 1fr;gap:3cqh 5cqw;font-size:max(10px,min(calc(5cqh*var(--ts,1)),calc(4.6cqw*var(--ts,1))))}
 .rd-grid span{display:block;color:var(--dim);letter-spacing:.06em;margin-bottom:.3em}
 .rd-grid b{font:300 1.9em/1 "Saira",sans-serif;color:var(--hi);font-variant-numeric:tabular-nums}
 .rd-grid b small{font-size:.5em;color:var(--dim)}
@@ -465,24 +496,24 @@ body.ticker-on{--tick:5.8vmin}
 .kp i.on.st{background:var(--warn)}
 .warn{color:var(--warn)!important}
 .wx-top{display:flex;align-items:center;gap:5cqw}
-.wx .rd-big{font-size:min(40cqh,20cqw)}
-.wx-days{display:grid;grid-template-columns:repeat(4,1fr);gap:2cqw;font-size:max(10px,min(4.6cqh,3.6cqw));margin-top:auto}
+.wx .rd-big{font-size:min(calc(40cqh*var(--ts,1)),calc(20cqw*var(--ts,1)))}
+.wx-days{display:grid;grid-template-columns:repeat(4,1fr);gap:2cqw;font-size:max(10px,min(calc(4.6cqh*var(--ts,1)),calc(3.6cqw*var(--ts,1))));margin-top:auto}
 .wx-days div{border-top:1px solid var(--line);padding-top:.5em;display:flex;flex-direction:column;gap:.2em;min-width:0}
 .wx-days span{color:var(--accent)} .wx-days b{font-weight:400;color:var(--hi);font-variant-numeric:tabular-nums}
 .wx-days i{font-style:normal;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 @container (max-height: 200px){ .wx-days{display:none} }
-.ev-list{list-style:none;margin:0;padding:0;overflow:hidden;flex:1;font-size:max(11px,min(5cqh,5cqw))}
+.ev-list{list-style:none;margin:0;padding:0;overflow:hidden;flex:1;font-size:max(11px,min(calc(5cqh*var(--ts,1)),calc(5cqw*var(--ts,1))))}
 .ev-list li{display:grid;grid-template-columns:auto 1fr;gap:.15em 1em;border-top:1px solid var(--line);padding:.55em 0}
 .ev-d{color:var(--accent);white-space:nowrap;font-variant-numeric:tabular-nums;grid-row:span 2}
 .ev-t{color:var(--hi);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ev-w{grid-column:2;color:var(--dim);font-size:.85em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ev-w:empty{display:none}
-.map-cap{position:absolute;left:2.2vmin;right:2.2vmin;bottom:1.2vmin;font-size:max(11px,min(4.4cqh,2.6cqw));color:var(--text);
+.map-cap{position:absolute;left:2.2vmin;right:2.2vmin;bottom:1.2vmin;font-size:max(11px,min(calc(4.4cqh*var(--ts,1)),calc(2.6cqw*var(--ts,1))));color:var(--text);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-decoration:none}
 .map-cap[href]:hover{color:var(--hi)}
 .map-cap b{color:var(--accent);font-weight:500;margin-right:1em;letter-spacing:.1em;text-transform:uppercase}
 .map-cap.hot,.map-cap.hot b{color:var(--warn)}
-.map-legend{position:absolute;right:2.2vmin;top:0;font-size:max(10px,min(3.6cqh,2cqw));color:var(--dim);letter-spacing:.06em;white-space:pre}
+.map-legend{position:absolute;right:2.2vmin;top:0;font-size:max(10px,min(calc(3.6cqh*var(--ts,1)),calc(2cqw*var(--ts,1))));color:var(--dim);letter-spacing:.06em;white-space:pre}
 .fh{margin:6px 0 -6px;font:500 13px/1.2 "Saira Semi Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;color:var(--accent)}
 .fh:first-child{margin-top:0}
 
@@ -495,7 +526,7 @@ body.ticker-on{--tick:5.8vmin}
 }
 </style>
 </head>
-<body class="show boot">
+<body class="boot">
 <div class="guides" id="guides" aria-hidden="true"></div>
 <main class="grid" id="grid" aria-label="Display zones"></main>
 <nav class="pagebar" id="pagebar" aria-label="Pages" hidden></nav>
@@ -509,6 +540,7 @@ body.ticker-on{--tick:5.8vmin}
 <div class="hud" id="hud" role="toolbar" aria-label="Display controls">
   <button id="bEdit" title="Shortcut: E">Edit layout</button>
   <button id="bAdd">Add zone</button>
+  <button id="bUndo" title="Undo (Cmd+Z)" disabled>Undo</button>
   <button id="bNews">News settings</button>
   <button id="bDisplay">Display &amp; alerts</button>
   <label class="dimctl">Brightness <input type="range" id="bDim" min="15" max="100" value="100"></label>
@@ -517,6 +549,9 @@ body.ticker-on{--tick:5.8vmin}
     <option value="mars">Mars red</option>
     <option value="belt">Belt amber</option>
     <option value="forest">Forest green</option>
+    <option value="belter">Belter teal and rust</option>
+    <option value="navy">Martian navy steel</option>
+    <option value="un">UN navy and white</option>
     <option value="custom">Custom…</option>
   </select>
   <input type="color" id="bColor" aria-label="Custom color" title="Pick your color" value="#5fdc8a" hidden>
@@ -553,13 +588,16 @@ body.ticker-on{--tick:5.8vmin}
 <script>
 (() => {
 const KEY = 'ops-display-v1';
-const DISPLAY_DEFAULTS = { orient:'h', bright:'100', night:'off', nightFrom:'23:00', nightTo:'07:00', nightBright:'35', chime:'off', hum:'off', humVol:'30' };
+const DISPLAY_DEFAULTS = { orient:'h', ts:'100', bg:'stars', bgLevel:'60', awake:'on', shift:'on', bootSeq:'on', bright:'100', night:'off', nightFrom:'23:00', nightTo:'07:00', nightBright:'35', chime:'off', hum:'off', humVol:'30' };
 const NEWS_DEFAULTS = { watch:'', mute:'', alert:'on', alertMin:'3', ticker:'on', tickerCat:'world', tickerSources:'top\nnpr.org', tickerSpeed:'normal' };
 const PALETTES = {
   earth:{bg:'#02070c',panel:'#061521',line:'#1f4a63',text:'#cfe8f7',dim:'#6f93aa',accent:'#5fd0ff',hi:'#e8f7ff',warn:'#ffb347',wx:'#ff4fd8'},
   mars: {bg:'#080303',panel:'#170807',line:'#5a2019',text:'#f4dad4',dim:'#a5776e',accent:'#ff5d4a',hi:'#fff0ec',warn:'#ffd166',wx:'#3dffd0'},
   belt: {bg:'#070502',panel:'#151006',line:'#4f3b14',text:'#f2e4c9',dim:'#a48d63',accent:'#ffb02e',hi:'#fff6e4',warn:'#ff6b4a',wx:'#8c7bff'},
-  forest:{bg:'#020604',panel:'#06150b',line:'#1d4a2c',text:'#d3efd9',dim:'#7fa58a',accent:'#5fdc8a',hi:'#eefbf1',warn:'#ffb347',wx:'#ff5fa2'}
+  forest:{bg:'#020604',panel:'#06150b',line:'#1d4a2c',text:'#d3efd9',dim:'#7fa58a',accent:'#5fdc8a',hi:'#eefbf1',warn:'#ffb347',wx:'#ff5fa2'},
+  belter:{bg:'#030706',panel:'#0a1513',line:'#27453f',text:'#d6ece6',dim:'#86a59c',accent:'#39d6c0',hi:'#effdf9',warn:'#e8743b',wx:'#ff5fa2'},
+  navy:  {bg:'#040506',panel:'#0e1114',line:'#363d45',text:'#dde3ea',dim:'#8b96a3',accent:'#c3cfdc',hi:'#f6f9fc',warn:'#ff5240',wx:'#ffd23f'},
+  un:    {bg:'#02040b',panel:'#08102a',line:'#26386b',text:'#dbe4fb',dim:'#8796c2',accent:'#e8eeff',hi:'#ffffff',warn:'#ffc94d',wx:'#ff5fa2'}
 };
 const $ = (s, r = document) => r.querySelector(s);
 let grid = $('#grid');
@@ -1734,6 +1772,26 @@ const svcNEO = () => service('neo', async () => {
       ld:au * 389.17, km:au * 149597871, speed:parseFloat(r[ix('v_rel')]), size:isNaN(h) ? '' : `${Math.round(dMin)}–${Math.round(dMax)} m`, sizeM:isNaN(h) ? 0 : Math.sqrt(dMin * dMax) };
   }).filter(a => !isNaN(a.date));
 }, 6 * 36e5);
+// Email: your own Vercel function reads the newest unread messages, unlocked by a passcode kept only in this browser.
+const INBOX_KEY_STORE = 'ops-inbox-key';
+const inboxKey = () => { try { return localStorage.getItem(INBOX_KEY_STORE) || ''; } catch(e){ return ''; } };
+const svcInbox = () => service('inbox:' + inboxKey().length, async () => {
+  if (!HOSTED) throw Object.assign(new Error('needs vercel'), {code:'hosted'});
+  if (!inboxKey()) throw Object.assign(new Error('no passcode'), {code:'key'});
+  const res = await fetch('/api/inbox', {headers:{'x-inbox-key':inboxKey()}});
+  let j = {}; try { j = await res.json(); } catch(e){}
+  if (res.status === 501) throw Object.assign(new Error('not set up'), {code:'setup'});
+  if (res.status === 401) throw Object.assign(new Error('wrong passcode'), {code:'key'});
+  if (res.status === 404) throw Object.assign(new Error('missing'), {code:'file'});
+  if (!res.ok) throw Object.assign(new Error(j.error || 'mail error'), {code:'mail'});
+  return j;
+}, 2 * 60e3);
+const MSG_APPS = [
+  ['Gmail', 'https://mail.google.com/mail/u/0/#inbox'],
+  ['WhatsApp', 'https://web.whatsapp.com/'],
+  ['Messenger', 'https://www.messenger.com/'],
+  ['Instagram', 'https://www.instagram.com/direct/inbox/']
+];
 const svcOnThisDay = () => service('otd:' + new Date().toDateString(), async () => {
   const d = new Date(), mm = pad(d.getMonth() + 1), dd = pad(d.getDate());
   let j;
@@ -3110,6 +3168,44 @@ const TYPES = {
     }
   },
 
+  inbox: {
+    label:'Messages', defaults:{ subjects:'show', count:'6', announce:'on', mailLink:'https://mail.google.com/mail/u/0/' },
+    fields:[
+      {key:'passcode', label:'Email passcode (the INBOX_KEY you set in Vercel; saved only in this browser)', kind:'secret'},
+      {key:'subjects', label:'Subjects', kind:'select', options:[['show','Show subjects'],['hide','Show only who it’s from (for when others can see the screen)']]},
+      {key:'count', label:'How many emails to list', kind:'number'},
+      {key:'announce', label:'Banner and log entry for new email', kind:'select', options:[['on','On'],['off','Off']]}
+    ],
+    hint:'Shows your newest unread email, with quick buttons to open Gmail, WhatsApp, Messenger and Instagram. Instagram, Messenger and WhatsApp don’t let outside apps read personal messages, so those are shortcuts only. Email needs a one-time setup in Vercel (see the README).',
+    mount(bd, z){
+      bd.innerHTML = '<div class="inbox"><div class="rd-sub ib-h"></div><ol class="ib-list"></ol><div class="ib-apps"></div></div>';
+      const h = $('.ib-h', bd), list = $('.ib-list', bd), apps = $('.ib-apps', bd);
+      MSG_APPS.forEach(([n, u]) => { const a = document.createElement('a'); a.href = u; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = n; apps.appendChild(a); });
+      const max = Math.max(1, Math.min(12, +z.opts.count || 6)), hideSubj = z.opts.subjects === 'hide';
+      const un = svcInbox().use((d, err) => {
+        list.innerHTML = '';
+        if (!d){
+          const why = err && err.code;
+          h.textContent = why === 'hosted' ? 'Email works from your Vercel address.' : why === 'key' ? (inboxKey() ? 'Wrong email passcode. Check it in edit mode.' : 'Email: enter your passcode in edit mode.')
+            : why === 'setup' ? 'Email isn’t set up in Vercel yet (see the README).' : why === 'file' ? 'Upload the new api/inbox.js to GitHub.' : (err && err.message) || 'Email unavailable. Retrying.';
+          return;
+        }
+        h.textContent = d.unread ? `${d.unread} unread email${d.unread === 1 ? '' : 's'}` : 'No unread email';
+        d.messages.slice(0, max).forEach(m => {
+          const li = document.createElement('li'), a = document.createElement('a');
+          a.target = '_blank'; a.rel = 'noopener noreferrer';
+          a.href = m.id ? `${z.opts.mailLink || MSG_APPS[0][1]}#search/rfc822msgid:${encodeURIComponent(m.id.replace(/^<|>$/g, ''))}` : MSG_APPS[0][1];
+          a.innerHTML = '<b></b><span></span><time></time>';
+          a.children[0].textContent = m.from; a.children[1].textContent = hideSubj ? '' : m.subject; a.children[2].textContent = ago(m.date);
+          li.appendChild(a); list.appendChild(li);
+          if (z.opts.announce !== 'off' && Date.now() - m.date < 15 * 6e4)
+            fireOnce('mail:' + (m.id || m.date), 48, {k:'New email', h:hideSubj ? `From ${m.from}` : `${m.from}: ${m.subject}`, link:a.href}, '✉');
+        });
+      });
+      return { destroy: un };
+    }
+  },
+
   log: {
     label:'Event log', defaults:{}, fields:[],
     hint:'Everything the display noticed: big stories, your alerts, strong earthquakes, serious disaster alerts, strong aurora and rocket launches. Kept for three days.',
@@ -3378,6 +3474,7 @@ function load(){
   return freshLayout();
 }
 function save(){
+  trackUndo();
   try { localStorage.setItem(KEY, JSON.stringify(state)); }
   catch(e){ toast('Couldn’t save this change. If you added an image, try a smaller one.'); }
 }
@@ -3498,7 +3595,7 @@ function drawPageBar(){
   bar.appendChild(tools);
 }
 setInterval(() => {
-  if (!rotating() || pageCount() < 2 || editing || drawer.classList.contains('open') || document.body.classList.contains('show')) return;
+  if (!rotating() || pageCount() < 2 || editing || drawer.classList.contains('open') || document.body.classList.contains('moving')) return;
   pageIdle++;
   if (pageIdle >= Math.max(15, +state.pages.seconds || 120)) goPage(curPage + 1);
 }, 1000);
@@ -3560,6 +3657,51 @@ function applyOrient(force){
 }
 let orientT;
 addEventListener('resize', () => { clearTimeout(orientT); orientT = setTimeout(() => { if (state.display.orient === 'auto' && applyOrient()){ finishDissolve(); save(); render(); } }, 400); });
+
+/* ---------- Layout presets ---------- */
+const presetZone = (type, title, x, y, w, h, opts = {}) => ({id:uid(), type, title, x, y, w, h, o:'h', opts:{...TYPES[type].defaults, ...opts}});
+const BUILTIN_PRESETS = {
+  'News-heavy': () => [
+    presetZone('clock', 'Ship time', 1, 1, 3, 2, {places:'London, UK\nTokyo', fit:'no'}), presetZone('news', 'Newsfeed', 1, 3, 3, 6),
+    presetZone('map', 'Situation map', 4, 1, 6, 5), presetZone('news', 'Second feed', 4, 6, 3, 3, {category:'science'}),
+    presetZone('log', 'Event log', 7, 6, 3, 3), presetZone('weather', 'Weather', 10, 1, 3, 3), presetZone('quakes', 'Seismic', 10, 4, 3, 2),
+    presetZone('radio', 'Ship’s radio', 10, 6, 3, 3)],
+  'Space-heavy': () => [
+    presetZone('clock', 'Ship time', 1, 1, 3, 2, {places:'UTC', fit:'no'}), presetZone('sun', 'Live sun', 1, 3, 3, 4), presetZone('radio', 'Ship’s radio', 1, 7, 3, 2),
+    presetZone('map', 'Orbit and aurora', 4, 1, 6, 5, {news:'no', wx:'no', radar:'no'}), presetZone('neo', 'Near-Earth asteroids', 4, 6, 6, 3),
+    presetZone('spacewx', 'Space weather', 10, 1, 3, 3), presetZone('launches', 'Launch schedule', 10, 4, 3, 3), presetZone('sky', 'Tonight’s sky', 10, 7, 3, 2)],
+  'Minimal': () => [
+    presetZone('clock', 'Ship time', 1, 1, 4, 3, {places:'', fit:'no'}), presetZone('weather', 'Weather', 1, 4, 4, 3), presetZone('radio', 'Ship’s radio', 1, 7, 4, 2),
+    presetZone('map', 'Situation map', 5, 1, 8, 8)],
+};
+function applyPreset(zones, name){
+  pushUndo();
+  zones.forEach(z => { z.id = uid(); z.o = z.o || 'h'; });
+  state.zones = zones; orientZones(state.zones, ORIENT);
+  goPage(0, true); save(); render(); toast(`Main page: ${name}. Undo to go back.`);
+}
+
+/* ---------- Undo ---------- */
+const UNDO = []; let undoBase = null, undoT = null;
+// Remembers how things were before each round of changes (changes within a second count as one).
+function pushUndo(){
+  const now = JSON.stringify(state);
+  if (undoBase && undoBase !== now && UNDO[UNDO.length - 1] !== undoBase){ UNDO.push(undoBase); if (UNDO.length > 40) UNDO.shift(); }
+  undoBase = now; updUndo();
+}
+function trackUndo(){ if (!undoBase) return; clearTimeout(undoT); undoT = setTimeout(pushUndo, 900); }
+function undo(){
+  clearTimeout(undoT);
+  const cur = JSON.stringify(state);
+  if (undoBase && undoBase !== cur){ UNDO.push(undoBase); }
+  const prev = UNDO.pop(); if (!prev){ toast('Nothing to undo'); return; }
+  finishDissolve(); state = JSON.parse(prev); undoBase = prev;
+  try { localStorage.setItem(KEY, prev); } catch(e){}
+  closeDrawer(); ORIENT = ''; applyOrient(true); applyPalette(state.palette); applyDim(); applyScreen();
+  if (curPage >= pageCount()) curPage = 0;
+  render(); drawPageBar(); tickerApply(); alertsApply(); updUndo(); toast('Undone');
+}
+const updUndo = () => { const b = $('#bUndo'); if (b) b.disabled = !UNDO.length && undoBase === JSON.stringify(state); };
 
 /* ---------- Auto-sizing ---------- */
 // Grows or shrinks a zone by whole grid rows so its content fits, nudging the zone below.
@@ -3652,6 +3794,7 @@ function render(){
     el.className = 'zone' + (z.id === selId ? ' sel' : '');
     el.dataset.id = z.id; el.style.setProperty('--i', i);
     el.style.gridColumn = `${z.x} / span ${z.w}`; el.style.gridRow = `${z.y} / span ${z.h}`;
+    if (z.accent){ el.style.setProperty('--accent', z.accent); el.style.setProperty('--glow', rgba(z.accent, .35)); }
     el.innerHTML = '<div class="in"><header class="hd"><span class="t"></span><span class="rule"></span></header><div class="bd"></div></div>';
     $('.t', el).textContent = z.title || t.label;
     const bd = $('.bd', el);
@@ -3670,7 +3813,15 @@ function render(){
     grid.appendChild(el);
   });
   tickSecond();
-  if (firstRender){ firstRender = false; setTimeout(() => document.body.classList.remove('boot'), 2000); }
+  if (firstRender){
+    firstRender = false;
+    if (state.display.bootSeq === 'off' || calm()) document.body.classList.remove('boot');
+    else {
+      grid.querySelectorAll('.zone').forEach(el => el.style.setProperty('--zh', el.offsetHeight + 'px'));
+      const m = document.createElement('div'); m.className = 'bootmsg'; m.innerHTML = '<div><b>Ops display</b>Systems coming online</div>'; document.body.appendChild(m);
+      setTimeout(() => { document.body.classList.remove('boot'); m.remove(); }, 1600 + Z().length * 140);
+    }
+  }
 }
 function tickSecond(){ live.forEach(l => l.second && l.second()); }
 
@@ -3692,7 +3843,7 @@ function loop(t){
       perf.frames = 0; perf.worst = 0; perf.since = t;
     }
   }
-  tickerFrame(t, dt);
+  tickerFrame(t, dt); BG.frame(t);
   const every = reduce ? 1000 : state.motion === 'light' || nightNow ? 250 : 33;
   if (t - lastDraw >= every && !(dissolving && dissolving.fading)){ const fdt = Math.min(250, t - lastDraw); lastDraw = t; live.forEach(l => l.frame && l.frame(t, fdt)); }
   requestAnimationFrame(loop);
@@ -3724,6 +3875,12 @@ function buildDrawer(z){
   const title = document.createElement('input'); title.value = z.title || '';
   title.addEventListener('input', () => { z.title = title.value; commit(); });
   fieldsEl.appendChild(field('Title', title));
+  const acc = document.createElement('div'); acc.className = 'btnrow acc';
+  const ac = Object.assign(document.createElement('input'), {type:'color', value:z.accent || C.accent});
+  const acReset = Object.assign(document.createElement('button'), {type:'button', textContent:'Use theme color'});
+  ac.addEventListener('input', () => { z.accent = ac.value; commit(); });
+  acReset.addEventListener('click', () => { delete z.accent; ac.value = C.accent; save(); render(); });
+  acc.append(ac, acReset); fieldsEl.appendChild(field(z.accent ? 'Accent color (this zone only)' : 'Accent color (using the theme’s)', acc));
 
   const type = selectEl(Object.entries(TYPES).map(([k, v]) => [k, v.label]), z.type);
   type.addEventListener('change', () => {
@@ -3756,6 +3913,11 @@ function buildDrawer(z){
     if (fd.when && !fd.when(z)) return;
     const store = fd.shared ? state[fd.shared] : z.opts;
     let inp;
+    if (fd.kind === 'secret'){
+      inp = Object.assign(document.createElement('input'), {type:'password', value:inboxKey(), autocomplete:'off'});
+      inp.addEventListener('change', () => { try { localStorage.setItem(INBOX_KEY_STORE, inp.value.trim()); } catch(e){} render(); });
+      fieldsEl.appendChild(field(fd.label, inp)); return;
+    }
     if (fd.kind === 'textarea'){ inp = document.createElement('textarea'); inp.value = store[fd.key] || ''; }
     else if (fd.kind === 'select'){ inp = selectEl(fd.options, store[fd.key] || fd.options.find(o => o[0] !== '__group')[0]); }
     else { inp = document.createElement('input'); inp.type = fd.kind === 'datetime' ? 'datetime-local' : fd.kind === 'number' ? 'number' : 'text'; inp.value = store[fd.key] || ''; if (fd.kind === 'number') inp.min = 2; }
@@ -3969,6 +4131,73 @@ function alertsApply(){
   });
 }
 
+/* ---------- Screen: text size, living background, keep awake, burn-in protection ---------- */
+let wakeLock = null;
+async function keepAwake(){
+  const want = state.display.awake !== 'off' && document.visibilityState === 'visible';
+  try {
+    if (want && !wakeLock && navigator.wakeLock){ wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); }
+    if (!want && wakeLock){ await wakeLock.release(); wakeLock = null; }
+  } catch(e){}
+}
+document.addEventListener('visibilitychange', keepAwake);
+addEventListener('pointerdown', () => { if (!wakeLock) keepAwake(); }, {passive:true});
+let shiftStep = 0;
+function burnShift(){
+  const pts = [[0,0],[3,1],[1,4],[-2,3],[-4,0],[-2,-3],[1,-4],[3,-1]];
+  const on = state.display.shift !== 'off', [x, y] = on ? pts[shiftStep++ % pts.length] : [0, 0];
+  const r = document.documentElement.style; r.setProperty('--sx', x + 'px'); r.setProperty('--sy', y + 'px');
+}
+setInterval(burnShift, 4 * 6e4);
+function applyScreen(){
+  const D = state.display;
+  document.documentElement.style.setProperty('--ts', ((+D.ts || 100) / 100).toFixed(2));
+  BG.set(D.bg || 'stars', (+D.bgLevel || 60) / 100);
+  keepAwake();
+  if (D.shift === 'off') burnShift();
+}
+// Living background: drifting, twinkling stars and an optional faint nebula, drawn behind the panels a few times a second.
+const BG = (() => {
+  const cv = document.createElement('canvas'); cv.className = 'bgfield'; cv.setAttribute('aria-hidden', 'true');
+  document.body.prepend(cv);
+  const ctx = cv.getContext('2d'); let mode = 'off', level = .6, stars = [], neb = null, w = 0, h = 0, last = 0, nebKey = '';
+  const size = () => {
+    const dpr = Math.min(1.5, devicePixelRatio || 1); w = innerWidth; h = innerHeight;
+    cv.width = w * dpr; cv.height = h * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    stars = Array.from({length:Math.round(w * h / 5200)}, () => ({x:Math.random() * w, y:Math.random() * h, r:Math.random() < .08 ? 1.4 : Math.random() * .9 + .3, p:Math.random() * 6.3, s:.3 + Math.random() * .7}));
+    nebKey = '';
+  };
+  const makeNebula = () => {
+    neb = document.createElement('canvas'); neb.width = Math.ceil(w / 3); neb.height = Math.ceil(h / 3);
+    const n = neb.getContext('2d'), cols = [C.accent, C.wx || C.warn, C.accent];
+    for (let i = 0; i < 6; i++){
+      const x = Math.random() * neb.width, y = Math.random() * neb.height, r = (.25 + Math.random() * .35) * Math.max(neb.width, neb.height);
+      const g = n.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, rgba(cols[i % 3], .16)); g.addColorStop(1, rgba(cols[i % 3], 0));
+      n.fillStyle = g; n.fillRect(0, 0, neb.width, neb.height);
+    }
+    nebKey = C.accent + w + 'x' + h;
+  };
+  const draw = t => {
+    ctx.clearRect(0, 0, w, h);
+    if (mode === 'off') return;
+    if (mode === 'nebula'){ if (nebKey !== C.accent + w + 'x' + h) makeNebula(); ctx.globalAlpha = level; ctx.drawImage(neb, 0, 0, w, h); }
+    const drift = calm() ? 0 : t / 1000 * 1.2;
+    stars.forEach(st => {
+      const x = (st.x - drift * st.s + w) % w, tw = calm() ? .7 : .55 + .45 * Math.sin(t / 1800 * st.s + st.p);
+      ctx.globalAlpha = level * tw * (st.r > 1 ? 1 : .75);
+      ctx.fillStyle = st.r > 1 ? C.hi : C.text;
+      ctx.fillRect(x, st.y, st.r, st.r);
+    });
+    ctx.globalAlpha = 1;
+  };
+  addEventListener('resize', () => { size(); draw(performance.now()); });
+  size();
+  return {
+    set(m, l){ mode = m; level = l; cv.hidden = m === 'off'; nebKey = ''; draw(performance.now()); },
+    frame(t){ if (mode === 'off' || t - last < (calm() ? 2000 : 100) || (dissolving && dissolving.fading)) return; last = t; draw(t); }
+  };
+})();
+
 /* ---------- Brightness and night dimming ---------- */
 let nightNow = false;
 const minutesOf = s => { const [h, m] = String(s || '0:0').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
@@ -4050,11 +4279,18 @@ function openDisplaySettings(){
     if (kind === 'select') inp = selectEl(opts, D[key]);
     else { inp = document.createElement('input'); inp.type = kind; inp.value = D[key]; if (kind === 'range'){ inp.min = 15; inp.max = 100; } }
     inp.addEventListener(kind === 'select' ? 'change' : 'input', () => {
-      D[key] = inp.value; applyDim(); humApply();
+      D[key] = inp.value; applyDim(); humApply(); applyScreen();
       clearTimeout(dt); dt = setTimeout(save, 300);
     });
     fieldsEl.appendChild(field(label, inp));
   };
+  head('Screen');
+  add('Text size (for reading from across the room)', 'ts', 'select', [['85','Smaller'],['100','Normal'],['115','Larger'],['130','Large'],['150','Very large'],['175','Huge']]);
+  add('Background', 'bg', 'select', [['off','Plain'],['stars','Drifting stars'],['nebula','Stars and nebula']]);
+  add('Background strength', 'bgLevel', 'range');
+  add('Keep the screen awake while this is open', 'awake', 'select', [['on','On'],['off','Off']]);
+  add('Burn-in protection (shift everything a few pixels every few minutes)', 'shift', 'select', [['on','On'],['off','Off']]);
+  add('Start-up sequence when the page loads', 'bootSeq', 'select', [['on','On'],['off','Off']]);
   head('Brightness');
   add('Brightness (also on the control bar while editing)', 'bright', 'range');
   add('Dim at night', 'night', 'select', [['off','Off'],['on','On']]);
@@ -4062,6 +4298,34 @@ function openDisplaySettings(){
   add('Night ends at', 'nightTo', 'time');
   add('Night brightness', 'nightBright', 'range');
   note('At night the display also slows its animations and stays silent.');
+  head('Layout presets');
+  note('Swap the main page for a ready-made layout, or save yours to come back to. Undo (the control bar, or Cmd+Z) reverses any swap.');
+  const prow = document.createElement('div'); prow.className = 'btnrow'; fieldsEl.appendChild(prow);
+  Object.entries(BUILTIN_PRESETS).forEach(([name, fn]) => {
+    const b = Object.assign(document.createElement('button'), {type:'button', textContent:name});
+    b.onclick = () => { applyPreset(fn(), name); }; prow.appendChild(b);
+  });
+  const mine = document.createElement('div'); mine.className = 'rules'; fieldsEl.appendChild(mine);
+  const drawMine = () => {
+    mine.innerHTML = '';
+    (state.presets || []).forEach(pr => {
+      const row = document.createElement('div'); row.className = 'rule';
+      const t = document.createElement('span'); t.textContent = pr.name;
+      const ap = Object.assign(document.createElement('button'), {type:'button', textContent:'Use'}); ap.onclick = () => applyPreset(JSON.parse(JSON.stringify(pr.zones)), pr.name);
+      const del = Object.assign(document.createElement('button'), {type:'button', textContent:'Remove', className:'danger'});
+      del.onclick = () => { state.presets = state.presets.filter(x => x !== pr); save(); drawMine(); };
+      row.append(t, ap, del); mine.appendChild(row);
+    });
+  };
+  drawMine();
+  const pn = Object.assign(document.createElement('input'), {type:'text', placeholder:'Name for this layout'});
+  const ps = Object.assign(document.createElement('button'), {type:'button', textContent:'Save the main page as a preset'});
+  ps.onclick = () => {
+    const name = pn.value.trim() || `My layout ${(state.presets || []).length + 1}`;
+    const copy = JSON.parse(JSON.stringify(state.zones)); copy.forEach(z => { if (z.o === 'v'){ const c = {x:z.x, y:z.y, w:z.w, h:z.h}; if (z.alt) Object.assign(z, z.alt); z.alt = c; z.o = 'h'; } });
+    state.presets = (state.presets || []).concat({name, zones:copy}); save(); pn.value = ''; drawMine(); toast('Saved “' + name + '”');
+  };
+  fieldsEl.append(field('Save your own', pn), ps);
   head('Rotating pages');
   const pg = state.pages;
   const pgSel = selectEl([['off','Off: stay on the page I choose'],['on','On: rotate through pages']], pg.on);
@@ -4228,12 +4492,14 @@ $('#bDelete').addEventListener('click', () => {
 });
 $('#bDone').addEventListener('click', closeDrawer);
 $('#bNews').addEventListener('click', openNewsSettings);
+$('#bUndo').addEventListener('click', undo);
 $('#bDisplay').addEventListener('click', openDisplaySettings);
 $('#bDim').addEventListener('input', e => { state.display.bright = e.target.value; applyDim(); });
 $('#bDim').addEventListener('change', () => save());
 
 addEventListener('keydown', e => {
   if (e.target.matches('input, textarea')) { if (e.key === 'Escape') e.target.blur(); return; }
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')){ e.preventDefault(); undo(); return; }
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.key === 'e' || e.key === 'E') setEditing(!editing);
   else if (e.key === 'f' || e.key === 'F') fullscreen();
@@ -4243,9 +4509,32 @@ addEventListener('keydown', e => {
 });
 
 let idleT;
-function wake(){
-  document.body.classList.add('show'); clearTimeout(idleT);
-  idleT = setTimeout(() => { if (!editing && !drawer.classList.contains('open')) document.body.classList.remove('show'); }, 3000);
+// Moving the mouse shows the cursor (and a zone's own small menus when you hover it).
+// The control bar and page switch appear only when the mouse reaches the middle of the bottom or top edge,
+// They stay up while the mouse is over them. (Any movement still pauses rotating pages.)
+const B = document.body;
+let hudT, pagesT;
+function hidePartLater(cls, timerName){
+  clearTimeout(timerName === 'hud' ? hudT : pagesT);
+  const t = setTimeout(() => { if (!editing && !drawer.classList.contains('open') && !document.querySelector(cls === 'show-hud' ? '#hud:hover, #hud :focus' : '#pagebar:hover, #pagebar :focus')) B.classList.remove(cls); else hidePartLater(cls, timerName); }, 3000);
+  if (timerName === 'hud') hudT = t; else pagesT = t;
+}
+function wake(e){
+  B.classList.add('moving'); clearTimeout(idleT);
+  idleT = setTimeout(() => { if (!editing && !drawer.classList.contains('open')) B.classList.remove('moving'); }, 3000);
+  let hud = true, pages = true;
+  if (e && e.type !== 'touchstart'){
+    hud = pages = false;
+    if (e.clientX != null){
+      const midX = Math.abs(e.clientX - innerWidth / 2) < innerWidth * .2, edge = Math.max(70, innerHeight * .1);
+      hud = midX && e.clientY > innerHeight - edge;
+      pages = midX && e.clientY < edge;
+    }
+    if (e.target && e.target.closest){ if (e.target.closest('#hud')) hud = true; if (e.target.closest('#pagebar')) pages = true; }
+    if (e.type === 'keydown') return;
+  }
+  if (hud){ B.classList.add('show-hud'); hidePartLater('show-hud', 'hud'); }
+  if (pages){ B.classList.add('show-pages'); hidePartLater('show-pages', 'pages'); }
 }
 ['mousemove','mousedown','keydown','touchstart'].forEach(ev => addEventListener(ev, wake, {passive:true}));
 
@@ -4255,11 +4544,12 @@ document.addEventListener('change', e => { if (e.target.matches('#hud select, .c
 
 applyPalette(state.palette);
 save(); // keeps any upgrades made to an older saved layout
-applyDim(); setInterval(() => { applyDim(); humApply(); }, 3e4);
+applyDim(); applyScreen(); burnShift(); setInterval(() => { applyDim(); humApply(); }, 3e4);
 if (pagesOn() && !state.pages.list.length){ state.pages.list = starterPages(); save(); }
 applyOrient(true); save();
 render(); drawPageBar(); tickerApply(); wake();
 alertsApply(); startWatchers(); checkSetupLink();
+undoBase = JSON.stringify(state); updUndo();
 requestAnimationFrame(loop);
 })();
 </script>
