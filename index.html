@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ops display · v37</title>
+<title>Ops display · v38</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@400;500;600&family=Saira:wght@200;300;400&display=swap" rel="stylesheet">
@@ -456,7 +456,7 @@ body.ticker-on{--tick:5.8vmin}
 .tk-view::before,.tk-view::after{content:"";position:absolute;top:0;bottom:0;width:4%;z-index:1;pointer-events:none}
 .tk-view::before{left:0;background:linear-gradient(90deg,var(--panel),transparent)}
 .tk-view::after{right:0;background:linear-gradient(-90deg,var(--panel),transparent)}
-.tk-track{position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;white-space:nowrap;will-change:transform;font:300 calc(2.2vmin*var(--ts,1))/1 "Saira",sans-serif;color:var(--text)}
+.tk-track{transform:translate3d(0,0,0);position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;white-space:nowrap;will-change:transform;font:300 calc(2.2vmin*var(--ts,1))/1 "Saira",sans-serif;color:var(--text)}
 .tk-item{padding:0 1.4vmin;color:inherit;text-decoration:none}
 .tk-item[href]:hover{color:var(--hi);text-decoration:underline;text-decoration-color:var(--accent)}
 .tk-item.hot{color:var(--warn)}
@@ -1977,7 +1977,10 @@ const TYPES = {
       function tick(){
         const d = new Date();
         let h = d.getHours(); if (!h24) h = h % 12 || 12;
-        big.innerHTML = `${pad(h)}:${pad(d.getMinutes())}<span class="sec">:${pad(d.getSeconds())}</span>`;
+        if (!big.firstChild){ big.innerHTML = '<span></span><span class="sec"></span>'; }
+        const hm = `${pad(h)}:${pad(d.getMinutes())}`, sc = `:${pad(d.getSeconds())}`;
+        if (big.firstChild.textContent !== hm) big.firstChild.textContent = hm;
+        big.lastChild.textContent = sc;
         dt.textContent = d.toLocaleDateString(undefined, {weekday:'long', day:'numeric', month:'long', year:'numeric'});
         const today = dayKey.format(d);
         rows.forEach(r => {
@@ -3843,7 +3846,7 @@ function loop(t){
       perf.frames = 0; perf.worst = 0; perf.since = t;
     }
   }
-  tickerFrame(t, dt); BG.frame(t);
+  tickerFrame(t); BG.frame(t);
   const every = reduce ? 1000 : state.motion === 'light' || nightNow ? 250 : 33;
   if (t - lastDraw >= every && !(dissolving && dissolving.fading)){ const fdt = Math.min(250, t - lastDraw); lastDraw = t; live.forEach(l => l.frame && l.frame(t, fdt)); }
   requestAnimationFrame(loop);
@@ -3975,20 +3978,34 @@ function buildTrack(){
     const sep = document.createElement('span'); sep.className = 'tk-sep'; sep.textContent = '◆'; tr.appendChild(sep);
   };
   if (reduce){ add(tk.items[tk.i % tk.items.length]); tk.half = 0; tr.style.transform = ''; return; }
-  tk.items.forEach(add); tk.half = tr.scrollWidth; tk.items.forEach(add);
-  if (-tk.x >= tk.half) tk.x = 0;
+  tk.items.forEach(add); tk.items.forEach(add);
+  tkAnimate();
 }
-function tickerFrame(t, dt){
-  if (state.news.ticker === 'off' || !tk.items.length) return;
-  if (reduce){ if (t > tk.swapAt){ tk.swapAt = t + 8000; tk.i++; buildTrack(); } return; }
-  if (!tk.half || tk.paused) return;
+// The scroll runs as a browser animation on the graphics side, not in the page's own loop,
+// so clocks updating, data arriving or anything else the page does can never make it stutter.
+function tkAnimate(){
+  const tr = $('#tkTrack'); if (!tr || reduce || !tr.animate) return;
+  const kids = tr.children, n = kids.length / 2;
+  if (!n) return;
+  const half = kids[n].offsetLeft - kids[0].offsetLeft;   // exact width of one copy of the stories
+  if (!(half > 0)) return;
   const speed = ({slow:45, normal:80, fast:130}[state.news.tickerSpeed] || 80) * innerHeight / 1000;
-  tk.x -= speed * dt / 1000;
-  if (-tk.x >= tk.half) tk.x += tk.half;
-  (tk.el || (tk.el = $('#tkTrack'))).style.transform = `translate3d(${tk.x.toFixed(1)}px,0,0)`;
+  let frac = 0;
+  if (tk.anim){ const d = tk.anim.effect.getTiming().duration; frac = d ? ((tk.anim.currentTime || 0) % d) / d : 0; tk.anim.cancel(); }
+  tr.style.transform = '';
+  tk.half = half;
+  tk.anim = tr.animate([{transform:'translate3d(0,0,0)'}, {transform:`translate3d(${-half}px,0,0)`}], {duration:half / speed * 1000, iterations:Infinity, easing:'linear'});
+  tk.anim.currentTime = frac * half / speed * 1000;
+  if (tk.paused) tk.anim.pause();
 }
-$('#tkView').addEventListener('mouseenter', () => tk.paused = true);
-$('#tkView').addEventListener('mouseleave', () => tk.paused = false);
+function tickerFrame(t){
+  if (state.news.ticker === 'off' || !tk.items.length) return;
+  if (reduce && t > tk.swapAt){ tk.swapAt = t + 8000; tk.i++; buildTrack(); }
+}
+$('#tkView').addEventListener('mouseenter', () => { tk.paused = true; if (tk.anim) tk.anim.pause(); });
+$('#tkView').addEventListener('mouseleave', () => { tk.paused = false; if (tk.anim) tk.anim.play(); });
+let tkResize; addEventListener('resize', () => { clearTimeout(tkResize); tkResize = setTimeout(tkAnimate, 300); });
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => tkAnimate());
 
 /* ---------- News settings ---------- */
 let gt;
@@ -4151,7 +4168,9 @@ function burnShift(){
 setInterval(burnShift, 4 * 6e4);
 function applyScreen(){
   const D = state.display;
-  document.documentElement.style.setProperty('--ts', ((+D.ts || 100) / 100).toFixed(2));
+  const ts = ((+D.ts || 100) / 100).toFixed(2), tsChanged = document.documentElement.style.getPropertyValue('--ts') !== ts;
+  document.documentElement.style.setProperty('--ts', ts);
+  if (tsChanged && typeof tkAnimate === 'function') requestAnimationFrame(() => tkAnimate());
   BG.set(D.bg || 'stars', (+D.bgLevel || 60) / 100);
   keepAwake();
   if (D.shift === 'off') burnShift();
