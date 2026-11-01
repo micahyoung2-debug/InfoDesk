@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ops display · v38</title>
+<title>Ops display · v39</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@400;500;600&family=Saira:wght@200;300;400&display=swap" rel="stylesheet">
@@ -456,8 +456,11 @@ body.ticker-on{--tick:5.8vmin}
 .tk-view::before,.tk-view::after{content:"";position:absolute;top:0;bottom:0;width:4%;z-index:1;pointer-events:none}
 .tk-view::before{left:0;background:linear-gradient(90deg,var(--panel),transparent)}
 .tk-view::after{right:0;background:linear-gradient(-90deg,var(--panel),transparent)}
-.tk-track{transform:translate3d(0,0,0);position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;white-space:nowrap;will-change:transform;font:300 calc(2.2vmin*var(--ts,1))/1 "Saira",sans-serif;color:var(--text)}
+.tk-track{position:absolute;top:0;bottom:0;left:0;display:flex;align-items:center;white-space:nowrap;font:300 calc(2.2vmin*var(--ts,1))/1 "Saira",sans-serif;color:var(--text)}
 .tk-item{padding:0 1.4vmin;color:inherit;text-decoration:none}
+.tk-unit{flex:none;display:flex;align-items:center;white-space:nowrap}
+.tk-track.run{right:0}
+.tk-track.run .tk-unit{position:absolute;left:0;top:0;bottom:0;will-change:transform;backface-visibility:hidden}
 .tk-item[href]:hover{color:var(--hi);text-decoration:underline;text-decoration-color:var(--accent)}
 .tk-item.hot{color:var(--warn)}
 .tk-item.watch{color:var(--hi)}
@@ -3968,42 +3971,58 @@ function tickerApply(){
   refresh(); tk.timer = setInterval(refresh, 10 * 60e3);
 }
 function buildTrack(){
-  const tr = $('#tkTrack'); tr.innerHTML = '';
+  const tr = $('#tkTrack'); tr.innerHTML = ''; tr.classList.remove('run');
   const add = it => {
+    const u = document.createElement('span'); u.className = 'tk-unit';
     const a = document.createElement('a');
     a.className = 'tk-item' + (isHot(it) ? ' hot' : '') + (it.watch ? ' watch' : '');
     if (it.link){ a.href = it.link; a.target = '_blank'; a.rel = 'noopener noreferrer'; }
     if (it.source){ const s = document.createElement('span'); s.className = 'src'; s.textContent = it.source; a.appendChild(s); }
-    a.appendChild(document.createTextNode(it.title)); tr.appendChild(a);
-    const sep = document.createElement('span'); sep.className = 'tk-sep'; sep.textContent = '◆'; tr.appendChild(sep);
+    a.appendChild(document.createTextNode(it.title)); u.appendChild(a);
+    const sep = document.createElement('span'); sep.className = 'tk-sep'; sep.textContent = '◆'; u.appendChild(sep);
+    tr.appendChild(u);
   };
-  if (reduce){ add(tk.items[tk.i % tk.items.length]); tk.half = 0; tr.style.transform = ''; return; }
-  tk.items.forEach(add); tk.items.forEach(add);
+  if (reduce){ add(tk.items[tk.i % tk.items.length]); return; }
+  tk.items.forEach(add);
   tkAnimate();
 }
-// The scroll runs as a browser animation on the graphics side, not in the page's own loop,
-// so clocks updating, data arriving or anything else the page does can never make it stutter.
+// Each story slides across on its own small, separate browser animation, handled by the graphics side.
+// (One very long moving strip is too big for Firefox to hand off, so it fell back to the page's own
+// timing and hitched whenever the clocks updated. Small pieces always get handed off.)
 function tkAnimate(){
   const tr = $('#tkTrack'); if (!tr || reduce || !tr.animate) return;
-  const kids = tr.children, n = kids.length / 2;
-  if (!n) return;
-  const half = kids[n].offsetLeft - kids[0].offsetLeft;   // exact width of one copy of the stories
-  if (!(half > 0)) return;
-  const speed = ({slow:45, normal:80, fast:130}[state.news.tickerSpeed] || 80) * innerHeight / 1000;
-  let frac = 0;
-  if (tk.anim){ const d = tk.anim.effect.getTiming().duration; frac = d ? ((tk.anim.currentTime || 0) % d) / d : 0; tk.anim.cancel(); }
-  tr.style.transform = '';
-  tk.half = half;
-  tk.anim = tr.animate([{transform:'translate3d(0,0,0)'}, {transform:`translate3d(${-half}px,0,0)`}], {duration:half / speed * 1000, iterations:Infinity, easing:'linear'});
-  tk.anim.currentTime = frac * half / speed * 1000;
-  if (tk.paused) tk.anim.pause();
+  (tk.anims || []).forEach(a => a.cancel()); tk.anims = [];
+  tr.classList.remove('run');
+  tr.querySelectorAll('[data-clone]').forEach(c => c.remove());
+  let units = [...tr.children];
+  if (!units.length) return;
+  const V = $('#tkView').clientWidth || innerWidth;
+  // repeat the stories until one loop is longer than the screen plus the longest story
+  let widths = units.map(u => u.offsetWidth), L = widths.reduce((a, b) => a + b, 0);
+  if (!(L > 0)) return;
+  const orig = units.slice();
+  while (L < V + Math.max(...widths) && units.length < 400){
+    orig.forEach(u => { const c = u.cloneNode(true); c.dataset.clone = '1'; tr.appendChild(c); units.push(c); widths.push(u.offsetWidth); L += u.offsetWidth; });
+  }
+  const speed = ({slow:45, normal:80, fast:130}[state.news.tickerSpeed] || 80) * innerHeight / 1000, dur = L / speed * 1000;
+  tr.classList.add('run');
+  let o = 0;
+  units.forEach((u, i) => {
+    // position at time t: V - ((V - o + speed t) mod L); it enters at the right edge and leaves past the left
+    const start = (((V - o) % L) + L) % L;
+    const an = u.animate([{transform:`translate3d(${V}px,0,0)`}, {transform:`translate3d(${V - L}px,0,0)`}], {duration:dur, iterations:Infinity, easing:'linear'});
+    an.currentTime = start / speed * 1000;
+    if (tk.paused) an.pause();
+    tk.anims.push(an);
+    o += widths[i];
+  });
 }
 function tickerFrame(t){
   if (state.news.ticker === 'off' || !tk.items.length) return;
   if (reduce && t > tk.swapAt){ tk.swapAt = t + 8000; tk.i++; buildTrack(); }
 }
-$('#tkView').addEventListener('mouseenter', () => { tk.paused = true; if (tk.anim) tk.anim.pause(); });
-$('#tkView').addEventListener('mouseleave', () => { tk.paused = false; if (tk.anim) tk.anim.play(); });
+$('#tkView').addEventListener('mouseenter', () => { tk.paused = true; (tk.anims || []).forEach(a => a.pause()); });
+$('#tkView').addEventListener('mouseleave', () => { tk.paused = false; (tk.anims || []).forEach(a => a.play()); });
 let tkResize; addEventListener('resize', () => { clearTimeout(tkResize); tkResize = setTimeout(tkAnimate, 300); });
 if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => tkAnimate());
 
