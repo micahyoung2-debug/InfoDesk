@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Ops display · v39</title>
+<title>Ops display · v42</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Semi+Condensed:wght@400;500;600&family=Saira:wght@200;300;400&display=swap" rel="stylesheet">
@@ -397,6 +397,10 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 .map-tools{position:absolute;right:2.2vmin;z-index:3;display:flex;gap:6px;opacity:0;pointer-events:none;transition:opacity .35s}
 .moving:not(.editing) .zone:hover .map-tools{opacity:1;pointer-events:auto}
 .map-tools button{font-size:12px;padding:5px 9px;background:var(--panel)}
+.map-tools .mt-zoom{width:clamp(80px,14cqw,180px);accent-color:var(--accent);align-self:center;cursor:pointer}
+.map-tools .mt-sep{width:1px;background:var(--line);margin:0 2px}
+.map-tools button:disabled{opacity:.45;cursor:default}
+.bd-art canvas.zoomed{cursor:grab}
 .map-tools button.on{background:var(--accent);color:var(--bg);border-color:var(--accent)}
 .map-credit{position:absolute;right:2.2vmin;font-size:max(9px,min(calc(3cqh*var(--ts,1)),calc(1.6cqw*var(--ts,1))));color:var(--dim);text-decoration:none;z-index:2}
 .map-credit:hover{color:var(--hi);text-decoration:underline}
@@ -412,6 +416,8 @@ body.light .radio.playing .eq i,body.night .radio.playing .eq i{animation:none;h
 .map-tip .tip-hint{color:var(--accent);font-size:.85em}
 .map-tip.hot{border-color:var(--warn)}
 .map-tip.wx{border-color:var(--wx)}
+.map-tip.war{border-color:var(--war,#ff3348)}
+.map-tip .tip-story.war{color:var(--text)}
 .map-tip .tip-val{color:var(--hi);font-size:1.1em}
 .map-tip[hidden]{display:none}
 /* Image feed */
@@ -1415,6 +1421,110 @@ const svcWorldAir = () => service('gaq', () => openMeteoBatches(
   'https://air-quality-api.open-meteo.com/v1/air-quality?hourly=us_aqi,dust&forecast_days=2&timezone=auto',
   (p, r) => ({...p, aqi:[dayMax(r.hourly.us_aqi, 0), dayMax(r.hourly.us_aqi, 1)], dust:[dayMax(r.hourly.dust, 0), dayMax(r.hourly.dust, 1)]})
 ), 120 * 60e3);
+/* ---------- Conflict headlines ---------- */
+// Headlines about strikes and fighting, placed on the map at the city or region named, else the country.
+const WAR_STRIKE = /\b(air ?strikes?|airstrikes?|missiles?|ballistic|cruise missile|drones? (?:strike|attack)s?|drone strikes?|kamikaze drones?|shell(?:ing|ed|s)|bombard\w*|bomb(?:ing|ings|ed|s)?|rockets?|artillery|mortar|explosions?|blasts?)\b/i;
+const WAR_GROUND = /\b(fighting|clashes|offensive|counteroffensive|counter-offensive|troops|front ?line|frontline|invasion|invade[sd]?|incursion|militants?|insurgents?|gunmen|militia|rebels?|siege|ambush|raids?|assault|occupation|annex\w*)\b/i;
+const WAR_CONTEXT = /\b(war|ceasefire|truce|killed|dead|deaths|casualties|wounded|massacre|hostages?|evacuat\w*|displaced|refugees|army|military|soldiers|forces)\b/i;
+const WAR_NOT = /\b(trade|price|tariff|culture|cyber|console|heart attack|panic attack|star wars|award|oscar|box office|nba|nfl|mlb|nhl|fifa|premier league|football|soccer|cricket|tennis|golf|game|gaming|video ?game|stock|shares|market|bitcoin|crypto|election ad|rocket ?lab|spacex|nasa|starship|launch(?:es|ed)? (?:a|its|the)? ?satellite|fireworks|bombshell|photobomb|f-bomb)\b/i;
+function warKind(title){
+  if (WAR_NOT.test(title)) return null;
+  if (WAR_STRIKE.test(title)) return 'strike';
+  if (WAR_GROUND.test(title) && (WAR_CONTEXT.test(title) || geoLocate(title))) return 'ground';
+  if (/\b(war|ceasefire|massacre)\b/i.test(title) && WAR_CONTEXT.test(title.replace(/\b(war|ceasefire)\b/i, ''))) return 'war';
+  return null;
+}
+// name|lat|lon|other names
+const WAR_PLACES = `Kyiv|50.45|30.52|Kiev
+Kharkiv|49.99|36.23|Kharkov
+Odesa|46.48|30.73|Odessa
+Zaporizhzhia|47.84|35.14|Zaporizhia,Zaporozhye
+Dnipro|48.46|35.05|Dnipropetrovsk
+Kherson|46.64|32.62|
+Mykolaiv|46.98|31.99|
+Sumy|50.91|34.8|
+Lviv|49.84|24.03|
+Donetsk|48.0|37.8|Donbas,Donbass
+Luhansk|48.57|39.31|Lugansk
+Pokrovsk|48.28|37.18|
+Bakhmut|48.6|38.0|
+Kupiansk|49.71|37.62|Kupyansk
+Toretsk|48.4|37.85|
+Kramatorsk|48.72|37.56|
+Chernihiv|51.49|31.29|
+Crimea|45.0|34.1|Sevastopol
+Kursk|51.73|36.19|
+Belgorod|50.6|36.59|
+Bryansk|53.24|34.36|
+Moscow|55.76|37.62|Kremlin
+Gaza|31.5|34.45|Gaza City,Gaza Strip
+Rafah|31.29|34.25|
+Khan Younis|31.35|34.3|Khan Yunis
+Jabalia|31.53|34.48|Jabaliya
+Deir al-Balah|31.42|34.35|
+West Bank|32.0|35.25|Jenin,Nablus,Tulkarm,Ramallah,Hebron
+Tel Aviv|32.08|34.78|
+Jerusalem|31.77|35.21|
+Haifa|32.79|34.99|
+Beirut|33.89|35.5|
+South Lebanon|33.27|35.4|Tyre,Nabatieh,Sidon
+Damascus|33.51|36.29|
+Aleppo|36.2|37.13|
+Idlib|35.93|36.63|
+Homs|34.73|36.71|
+Deir ez-Zor|35.33|40.14|
+Sanaa|15.37|44.19|Sana'a
+Hodeidah|14.8|42.95|Hudaydah
+Marib|15.46|45.33|
+Red Sea|16.5|41.0|Bab el-Mandeb
+Tehran|35.69|51.39|
+Isfahan|32.65|51.67|
+Baghdad|33.31|44.37|
+Erbil|36.19|44.01|
+Khartoum|15.5|32.56|Omdurman
+El Fasher|13.63|25.35|Al-Fashir,El-Fasher
+Darfur|13.5|24.0|
+Kordofan|12.5|29.5|El Obeid
+Port Sudan|19.62|37.22|
+Goma|-1.68|29.22|
+Bukavu|-2.51|28.86|
+North Kivu|-0.79|29.05|South Kivu,Kivu
+Rakhine|20.1|93.0|Arakan
+Shan State|21.5|97.5|
+Sagaing|22.0|95.6|
+Mandalay|21.98|96.08|
+Mogadishu|2.05|45.32|
+Borno|11.85|13.16|Maiduguri
+Cabo Delgado|-12.3|39.8|
+Tigray|14.0|38.6|Mekelle
+Amhara|11.6|38.0|
+Port-au-Prince|18.54|-72.34|
+Kashmir|34.08|74.8|Srinagar
+Balochistan|28.5|65.5|Quetta
+Khyber Pakhtunkhwa|34.0|71.5|Peshawar,Waziristan
+Kabul|34.53|69.17|
+Catatumbo|8.8|-73.0|
+Sahel|14.0|1.0|`.split('\n').map(l => {
+  const [name, lat, lon, al] = l.split('|');
+  const names = [name, ...(al ? al.split(',') : [])].sort((a, b) => b.length - a.length);
+  return {name, lat:+lat, lon:+lon, rx:new RegExp('(?<![A-Za-z])(' + names.map(x => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![A-Za-z])', 'i')};
+});
+function warLocate(title){
+  let best = null, bi = Infinity;
+  for (const c of WAR_PLACES){ const m = c.rx.exec(title); if (m && m.index < bi){ bi = m.index; best = c; } }
+  if (best) return {...best, exact:true};
+  const c = geoLocate(title); return c ? {...c, exact:false} : null;
+}
+// Its own conflict feed, so the layer works whatever sources your newsfeeds use.
+const WAR_FEEDS = [gnSearch('airstrike OR "missile strike" OR "drone strike" OR shelling OR "rocket attack" OR artillery'),
+  gnSearch('fighting OR clashes OR offensive OR frontline OR militants OR troops'), 'https://www.aljazeera.com/xml/rss/all.xml'];
+const svcWarNews = () => service('warnews', async () => {
+  const r = await loadSources(WAR_FEEDS, 15, 'world');
+  if (!r.items.length) throw new Error('no conflict feed');
+  return r.items;
+}, 15 * 60e3);
+
+const MAPVIEW = {}; // each map's zoom and position, kept while the page is open
 const AURORA_LINK = 'https://www.swpc.noaa.gov/products/aurora-30-minute-forecast';
 const AUR_MIN = 8; // % chance below which nothing is drawn
 const svcAurora = () => service('aurora', async () => {
@@ -2130,7 +2240,7 @@ const TYPES = {
       });
       return wrap;
     },
-    label:'World map', defaults:{ news:'yes', quakes:'yes', iss:'yes', wx:'yes', radar:'yes', hazards:'yes', aurora:'yes', quotes:'yes', quoteFrom:'Ursula K. Le Guin\nOctavia E. Butler\nPeter Kropotkin\nEmma Goldman', quoteOwn:'', quoteSeconds:'25' },
+    label:'World map', defaults:{ news:'yes', quakes:'yes', iss:'yes', wx:'yes', radar:'yes', hazards:'yes', aurora:'yes', war:'yes', warFeed:'yes', warHours:'48', quotes:'yes', quoteFrom:'Ursula K. Le Guin\nOctavia E. Butler\nPeter Kropotkin\nEmma Goldman', quoteOwn:'', quoteSeconds:'25' },
     fields:[
       {key:'quotes', label:'Quotes below the map', kind:'select', options:[['yes','Show'],['no','Hide']]},
       {key:'quoteFrom', label:'Quote from these people or books, one per line. For a book, use its title, or add “by” and the author if it doesn’t come up: The Dispossessed by Ursula K. Le Guin', kind:'textarea', when:z => z.opts.quotes !== 'no'},
@@ -2139,10 +2249,14 @@ const TYPES = {
       {key:'news', label:'Headline locations', kind:'select', options:[['yes','Show'],['no','Hide']]},
       {key:'quakes', label:'Earthquakes (last 24 hours)', kind:'select', options:[['yes','Show'],['no','Hide']]},
       {key:'iss', label:'Space station track', kind:'select', options:[['yes','Show'],['no','Hide']]},
+      {key:'zoomReturn', label:'After zooming in, go back to the whole world', kind:'select', options:[['yes','After 3 minutes untouched'],['no','Never']]},
       {key:'wx', label:'Top five from the weather zone’s current view', kind:'select', options:[['yes','Show'],['no','Hide']]},
       {key:'radar', label:'Storm radar (rain and snow, where radar networks exist)', kind:'select', options:[['yes','Show'],['no','Hide']]},
       {key:'hazards', label:'Active hurricanes, floods, volcanoes and wildfires', kind:'select', options:[['yes','Show'],['no','Hide']]},
-      {key:'aurora', label:'Aurora forecast (NOAA, next 30 to 90 minutes)', kind:'select', options:[['yes','Show'],['no','Hide']]}
+      {key:'aurora', label:'Aurora forecast (NOAA, next 30 to 90 minutes)', kind:'select', options:[['yes','Show'],['no','Hide']]},
+      {key:'war', label:'Conflict headlines (strikes and fighting in the news)', kind:'select', options:[['yes','Show'],['no','Hide']]},
+      {key:'warFeed', label:'Conflict headlines come from', kind:'select', options:[['yes','A dedicated conflict feed plus your newsfeeds'],['no','Only your newsfeeds and ticker']], when:z => z.opts.war !== 'no'},
+      {key:'warHours', label:'Show conflict headlines from the last', kind:'select', options:[['12','12 hours'],['24','24 hours'],['48','2 days'],['96','4 days']], when:z => z.opts.war !== 'no'}
     ],
     hint:'Headline locations come from the newsfeed zones and the ticker. Land in darkness is shown dimmer. Quotes come from each name’s page on Wikiquote, a free collection of sourced quotations, plus any you type yourself.',
     mount(bd, z){
@@ -2183,7 +2297,7 @@ const TYPES = {
       // Things you can hover on the map, rebuilt every frame: {x, y, r, kind, key, data}
       let hits = [], hover = null, mouse = null;
       const fillTip = hv => {
-        tip.innerHTML = ''; tip.classList.remove('hot', 'wx');
+        tip.innerHTML = ''; tip.classList.remove('hot', 'wx', 'war');
         const line = (txt, cls) => { const e = document.createElement(cls === 'b' ? 'b' : 'span'); if (cls && cls !== 'b') e.className = cls; e.textContent = txt; tip.appendChild(e); };
         if (hv.kind === 'iss' && iss){
           line('International Space Station', 'b');
@@ -2203,6 +2317,13 @@ const TYPES = {
           if (it.what === 'Disaster alert' && it.note) line(it.note, 'tip-story');
           if (it.link) line(it.what === 'Disaster alert' ? 'Click for the GDACS report' : 'Click to open it on a live weather map', 'tip-hint');
           tip.classList.add('wx');
+        } else if (hv.kind === 'war'){
+          const g2 = hv.data, ns = g2.items.length;
+          line(`${g2.name}  ·  ${ns} conflict headline${ns === 1 ? '' : 's'}`, 'b');
+          g2.items.slice(0, 5).forEach(it => line(`${it.kind === 'strike' ? '✸ ' : '✕ '}${it.title}${it.source ? `  (${it.source}${it.date ? ', ' + ago(it.date) : ''})` : ''}`, 'tip-story war'));
+          if (!g2.exact) line('Placed at the country; the headline names no specific place.', 'tip-hint');
+          if (g2.items[0].link) line('Click to open the newest story', 'tip-hint');
+          tip.classList.add('war');
         } else if (hv.kind === 'aurora'){
           const a = hv.data;
           line(`Aurora chance  ${a.v}%`, 'b');
@@ -2233,12 +2354,13 @@ const TYPES = {
         tip.style.top = (above > 6 ? above : Math.min(h - tip.offsetHeight - 6, mouse[1] + 18)) + 'px';
       };
       const pickHit = () => {
-        if (!mouse || editing) return null;
-        const pri = {iss:0, haz:1, wx:2, news:3, quake:4, aurora:5};
+        if (!mouse || editing || drag) return null;
+        if (mouse[1] < clipTop || mouse[1] > clipBot) return null;
+        const pri = {iss:0, war:1, haz:2, wx:3, news:4, quake:5, aurora:6};
         let best = null;
         hits.forEach(t => {
           const d = Math.hypot(mouse[0] - t.x, mouse[1] - t.y);
-          if (d > t.r) return;
+          if (!(d <= t.r)) return;  // also skips anything with a bad position
           if (!best || pri[t.kind] < pri[best.kind] || (pri[t.kind] === pri[best.kind] && d < best.d)) best = {...t, d};
         });
         if (!best && aurora && lastGeom){
@@ -2253,7 +2375,7 @@ const TYPES = {
         const same = hv && hover && hv.kind === hover.kind && hv.key === hover.key;
         if (!same){
           hover = hv; tip.hidden = !hv;
-          const link = hv && (hv.kind === 'news' ? hv.data.items[0] && hv.data.items[0].link : hv.kind === 'quake' ? hv.data.url : hv.kind === 'wx' || hv.kind === 'haz' ? hv.data.link : hv.kind === 'aurora' ? AURORA_LINK : '');
+          const link = hv && (hv.kind === 'news' || hv.kind === 'war' ? hv.data.items[0] && hv.data.items[0].link : hv.kind === 'quake' ? hv.data.url : hv.kind === 'wx' || hv.kind === 'haz' ? hv.data.link : hv.kind === 'aurora' ? AURORA_LINK : '');
           cv.style.cursor = link ? 'pointer' : hv ? 'default' : '';
           if (hv) fillTip(hv);
         } else if (hv && hv.kind === 'iss') fillTip(hv);
@@ -2262,8 +2384,9 @@ const TYPES = {
       cv.addEventListener('mousemove', e => { const r = cv.getBoundingClientRect(); mouse = [e.clientX - r.left, e.clientY - r.top]; updateHover(); });
       cv.addEventListener('mouseleave', () => { mouse = null; hover = null; tip.hidden = true; cv.style.cursor = ''; });
       cv.addEventListener('click', () => {
+        if (panned){ panned = false; return; }
         if (editing || !hover) return;
-        const link = hover.kind === 'news' ? hover.data.items[0] && hover.data.items[0].link : hover.kind === 'quake' ? hover.data.url : hover.kind === 'wx' || hover.kind === 'haz' ? hover.data.link : hover.kind === 'aurora' ? AURORA_LINK : '';
+        const link = hover.kind === 'news' || hover.kind === 'war' ? hover.data.items[0] && hover.data.items[0].link : hover.kind === 'quake' ? hover.data.url : hover.kind === 'wx' || hover.kind === 'haz' ? hover.data.link : hover.kind === 'aurora' ? AURORA_LINK : '';
         if (link) window.open(link, '_blank', 'noopener');
       });
       const ctx = cv.getContext('2d'); let w = 0, h = 0, dpr = 1, base = null, baseKey = '';
@@ -2333,12 +2456,26 @@ const TYPES = {
       };
       // Quick toggles on the map itself (shown with the other controls when the mouse moves)
       const tools = document.createElement('div'); tools.className = 'map-tools';
-      [['radar', 'Radar'], ['hazards', 'Storms & hazards'], ['aurora', 'Aurora']].forEach(([k, label]) => {
+      [['war', 'Conflict'], ['radar', 'Radar'], ['hazards', 'Storms & hazards'], ['aurora', 'Aurora']].forEach(([k, label]) => {
         const b = document.createElement('button'); b.type = 'button'; b.textContent = label;
         b.classList.toggle('on', z.opts[k] !== 'no'); b.setAttribute('aria-pressed', z.opts[k] !== 'no');
         b.addEventListener('click', e => { e.stopPropagation(); z.opts[k] = z.opts[k] === 'no' ? 'yes' : 'no'; save(); render(); });
         tools.appendChild(b);
       });
+      const zb = (label, title, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.title = title;
+        b.addEventListener('click', e => { e.stopPropagation(); fn(); }); tools.appendChild(b); return b; };
+      const sep = document.createElement('span'); sep.className = 'mt-sep'; tools.appendChild(sep);
+      zb('−', 'Zoom out', () => zoomAt(...centre(), 1 / 1.6));
+      const zs = Object.assign(document.createElement('input'), {type:'range', min:0, max:1000, step:1, className:'mt-zoom', title:'Zoom'});
+      zs.setAttribute('aria-label', 'Map zoom');
+      const kToS = k => Math.round(Math.log(k) / Math.log(12) * 1000), sToK = v => Math.exp(v / 1000 * Math.log(12));
+      zs.value = kToS((MAPVIEW[z.id] || {k:1}).k);
+      ['pointerdown', 'click', 'dblclick', 'wheel'].forEach(ev => zs.addEventListener(ev, e => e.stopPropagation()));
+      zs.addEventListener('input', () => zoomAt(...centre(), sToK(+zs.value) / view.k));
+      tools.appendChild(zs);
+      zb('+', 'Zoom in (or scroll, pinch, or double-click the map)', () => zoomAt(...centre(), 1.6));
+      const resetBtn = zb('World', 'Show the whole world', () => { view.k = 1; clampView(); dirty = true; });
+      resetBtn.disabled = !(MAPVIEW[z.id] && MAPVIEW[z.id].k > 1.001);
       bd.appendChild(tools);
       const credit = document.createElement('a'); credit.className = 'map-credit'; credit.href = 'https://www.rainviewer.com/';
       credit.target = '_blank'; credit.rel = 'noopener noreferrer'; credit.textContent = 'Radar: Rain Viewer'; credit.hidden = !showRadar;
@@ -2365,7 +2502,7 @@ const TYPES = {
         }));
       }
       const wxUpdate = () => { wxSet = z.opts.wx !== 'no' ? WXBUS.current() : null; legend(); };
-      const legend = () => { leg.textContent = L.concat(wxSet ? ['✦ ' + (pp => pp.length > 1 ? pp[0] + ', ' + pp[pp.length - 1] : pp[0])(wxSet.label.split('  ·  '))] : []).join('     ') + '     ·  hover for details'; };
+      const legend = () => { leg.textContent = L.concat(wxSet ? ['✦ ' + (pp => pp.length > 1 ? pp[0] + ', ' + pp[pp.length - 1] : pp[0])(wxSet.label.split('  ·  '))] : []).join('     ') + '     ·  hover for details, scroll to zoom'; };
       if (z.opts.wx !== 'no'){ WXBUS.subs.add(wxUpdate); un.push(() => WXBUS.subs.delete(wxUpdate)); }
       wxUpdate();
       const recompute = () => {
@@ -2379,10 +2516,94 @@ const TYPES = {
         lastCap = 0;
       };
       if (z.opts.news !== 'no'){ NEWSBUS.subs.add(recompute); recompute(); }
-      const geom = () => {
+      // conflict headlines: grouped by place, newest first
+      let wars = [], warFeedItems = [];
+      const showWar = z.opts.war !== 'no';
+      const warRecompute = () => {
+        const maxAge = (+z.opts.warHours || 48) * 36e5, seen = new Set(), m = {};
+        [...warFeedItems, ...NEWSBUS.all()].forEach(it => {
+          if (!it.title || (it.date && Date.now() - it.date > maxAge)) return;
+          const key = it.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 60); if (seen.has(key)) return; seen.add(key);
+          const kind = warKind(it.title); if (!kind) return;
+          const p = warLocate(it.title); if (!p) return;
+          const g2 = m[p.name] || (m[p.name] = {name:p.name, lat:p.lat, lon:p.lon, exact:p.exact, items:[], strike:0, latest:0});
+          g2.items.push({...it, kind}); if (kind === 'strike') g2.strike++; g2.latest = Math.max(g2.latest, it.date || 0);
+        });
+        wars = Object.values(m).map(g2 => (g2.items.sort((a, b) => (b.date || 0) - (a.date || 0)), g2)).sort((a, b) => b.items.length - a.items.length);
+        if (wi >= 0){ L[wi] = '✸ Conflict' + (wars.length ? '' : ' (none in the news)'); Promise.resolve().then(() => legend()); }
+        dirty = true;
+      };
+      const wi = showWar ? L.push('✸ Conflict') - 1 : -1;
+      if (showWar){
+        NEWSBUS.subs.add(warRecompute); un.push(() => NEWSBUS.subs.delete(warRecompute));
+        if (z.opts.warFeed !== 'no') un.push(svcWarNews().use(d => { warFeedItems = d || []; Promise.resolve().then(warRecompute); }));
+        Promise.resolve().then(warRecompute);
+        const wt = setInterval(warRecompute, 5 * 6e4); un.push(() => clearInterval(wt));
+      }
+      // Whole-world view (the map area), and the zoomed view inside it.
+      const geomBase = () => {
         const ar = 360 / 140, legH = 18, avail = Math.max(40, h - topRoom - bottomRoom - legH), pw = Math.min(w * .96, avail * ar), ph = pw / ar;
         return { ox:(w - pw) / 2, oy:topRoom + legH + Math.max(0, (avail - ph) / 2), pw, ph };
       };
+      const view = MAPVIEW[z.id] || (MAPVIEW[z.id] = {k:1, fx:.5, fy:.5, at:0});
+      const clampView = () => {
+        const k = view.k = clamp(view.k, 1, 12);
+        view.fx = k <= 1.001 ? .5 : clamp(view.fx, .5 / k, 1 - .5 / k);
+        view.fy = k <= 1.001 ? .5 : clamp(view.fy, .5 / k, 1 - .5 / k);
+      };
+      const geom = (gb = geomBase()) => {
+        const pw = gb.pw * view.k, ph = gb.ph * view.k;
+        return { ox:gb.ox + gb.pw / 2 - view.fx * pw, oy:gb.oy + gb.ph / 2 - view.fy * ph, pw, ph };
+      };
+      let dirty = true, clipTop = -1e9, clipBot = 1e9, drag = null, panned = false;
+      const pinch = new Map();
+      // Zoom by a factor, keeping the point under (mx, my) in place.
+      const zoomAt = (mx, my, f) => {
+        const gb = geomBase(), g = geom(gb), ax = (mx - g.ox) / g.pw, ay = (my - g.oy) / g.ph;
+        view.k = clamp(view.k * f, 1, 12);
+        const pw = gb.pw * view.k, ph = gb.ph * view.k;
+        view.fx = (gb.ox + gb.pw / 2 - (mx - ax * pw)) / pw; view.fy = (gb.oy + gb.ph / 2 - (my - ay * ph)) / ph;
+        clampView(); view.at = Date.now(); dirty = true;
+      };
+      const centre = () => { const gb = geomBase(); return [gb.ox + gb.pw / 2, gb.oy + gb.ph / 2]; };
+      const local = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      cv.addEventListener('wheel', e => {
+        if (editing) return;
+        e.preventDefault();
+        const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+        const [mx, my] = local(e); zoomAt(mx, my, Math.exp(-dy * (e.ctrlKey ? .012 : .0018)));
+      }, {passive:false});
+      cv.addEventListener('dblclick', e => { if (editing || hover) return; const [mx, my] = local(e); zoomAt(mx, my, e.shiftKey ? .5 : 2); });
+      cv.addEventListener('pointerdown', e => {
+        if (editing || e.button !== 0) return;
+        pinch.set(e.pointerId, local(e));
+        try { cv.setPointerCapture(e.pointerId); } catch(err){}
+        const [x, y] = local(e);
+        drag = {x, y, fx:view.fx, fy:view.fy, moved:false};
+        if (pinch.size === 2){ const [p1, p2] = [...pinch.values()]; drag.pinch = Math.hypot(p1[0] - p2[0], p1[1] - p2[1]); }
+      });
+      cv.addEventListener('pointermove', e => {
+        if (!drag) return;
+        if (pinch.has(e.pointerId)) pinch.set(e.pointerId, local(e));
+        if (pinch.size === 2 && drag.pinch){
+          const [p1, p2] = [...pinch.values()], d = Math.hypot(p1[0] - p2[0], p1[1] - p2[1]);
+          zoomAt((p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2, d / drag.pinch); drag.pinch = d; drag.moved = true; return;
+        }
+        const [x, y] = local(e);
+        if (!drag.moved && Math.hypot(x - drag.x, y - drag.y) < 5) return;
+        if (view.k <= 1.001) return;
+        drag.moved = true; cv.style.cursor = 'grabbing';
+        const g = geom();
+        view.fx = drag.fx - (x - drag.x) / g.pw; view.fy = drag.fy - (y - drag.y) / g.ph;
+        clampView(); view.at = Date.now(); dirty = true;
+      });
+      const endDrag = e => {
+        pinch.delete(e.pointerId);
+        if (!drag) return;
+        if (drag.moved) panned = true;
+        if (!pinch.size){ drag = null; cv.style.cursor = ''; }
+      };
+      cv.addEventListener('pointerup', endDrag); cv.addEventListener('pointercancel', endDrag);
       const proj = (g, lat, lon) => [g.ox + (lon + 180) / 360 * g.pw, g.oy + (81.25 - lat) / 140 * g.ph];
       const drawBase = g => {
         // Land as a dot grid; land on the night side of Earth is dimmer.
@@ -2399,22 +2620,33 @@ const TYPES = {
           const lat = 80 - r * 2.5, lon = -178.75 + c * 2.5, la = lat * Math.PI / 180;
           const day = Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos((lon - sslon) * Math.PI / 180) > 0;
           const [x, y] = proj(g, lat, lon);
+          if (x < -20 || x > w + 20 || y < -20 || y > h + 20) continue;
           b.fillStyle = rgba(C.accent, day ? .55 : .2);
-          b.beginPath(); b.arc(x, y, Math.max(.8, cw * .3), 0, Math.PI * 2); b.fill();
+          b.beginPath(); b.arc(x, y, Math.max(.8, cw * .3 / Math.sqrt(view.k)), 0, Math.PI * 2); b.fill();
         }
       };
       return {
         frame(t){
-          if (!w || !h || t - (this.lastDraw || 0) < 48) return;
-          this.lastDraw = t;
-          const g = geom(), key = `${w}x${h}x${topRoom}x${bottomRoom}${C.accent}${Math.floor(Date.now() / 6e5)}`;
+          if (!w || !h || (t - (this.lastDraw || 0) < 48 && !dirty)) return;
+          this.lastDraw = t; dirty = false;
+          if (view.k > 1 && z.opts.zoomReturn !== 'no' && !mouse && !drag && Date.now() - view.at > 18e4){ view.k = 1; clampView(); }
+          const gb = geomBase(), g = geom(gb), zoomed = view.k > 1.001;
+          clipTop = zoomed ? gb.oy - 2 : -1e9; clipBot = zoomed ? gb.oy + gb.ph + 2 : 1e9;
+          const key = `${w}x${h}x${topRoom}x${bottomRoom}${C.accent}${Math.floor(Date.now() / 6e5)}x${view.k.toFixed(3)}x${view.fx.toFixed(4)}x${view.fy.toFixed(4)}`;
           if (key !== baseKey){ drawBase(g); baseKey = key; }
-          ctx.clearRect(0, 0, w, h); ctx.drawImage(base, 0, 0, w, h);
+          ctx.clearRect(0, 0, w, h);
+          ctx.save();
+          if (zoomed){ ctx.beginPath(); ctx.rect(0, clipTop, w, clipBot - clipTop); ctx.clip(); }
+          ctx.drawImage(base, 0, 0, w, h);
           hits = [];
+          const zl = zoomed ? `World  ·  ×${view.k < 10 ? view.k.toFixed(1) : Math.round(view.k)}` : 'World';
+          if (resetBtn.textContent !== zl){ resetBtn.textContent = zl; resetBtn.disabled = !zoomed; }
+          if (document.activeElement !== zs){ const sv = String(kToS(view.k)); if (zs.value !== sv) zs.value = sv; }
+          cv.classList.toggle('zoomed', zoomed);
           if (radarTiles){
-            const rk = `${g.pw}x${g.ph}x${radarAt}x${C.snow}`;
+            const rk = `${gb.pw}x${gb.ph}x${radarAt}x${C.snow}`;
             if (rk !== radarKey){
-              const pw = Math.max(1, Math.round(g.pw)), ph = Math.max(1, Math.round(g.ph));
+              const pw = Math.max(1, Math.round(gb.pw)), ph = Math.max(1, Math.round(gb.ph));
               const reshape = src => {
                 const cv2 = document.createElement('canvas'); cv2.width = pw; cv2.height = ph;
                 const o = cv2.getContext('2d');
@@ -2436,9 +2668,9 @@ const TYPES = {
             ctx.globalAlpha = .8; ctx.drawImage(radarOv, g.ox, g.oy, g.pw, g.ph); ctx.globalAlpha = 1;
           }
           if (aurora){
-            const ak = `${g.pw}x${g.ph}x${aurora.time}`;
+            const ak = `${gb.pw}x${gb.ph}x${aurora.time}`;
             if (ak !== auroraKey){
-              const pw = Math.max(1, Math.round(g.pw)), ph = Math.max(1, Math.round(g.ph)), cwx = pw / 360, chy = ph / 140;
+              const pw = Math.max(1, Math.round(gb.pw)), ph = Math.max(1, Math.round(gb.ph)), cwx = pw / 360, chy = ph / 140;
               const raw = document.createElement('canvas'); raw.width = pw; raw.height = ph;
               const r2 = raw.getContext('2d');
               for (let lat = 81; lat >= -58; lat--) for (let x = 0; x < 360; x++){
@@ -2459,7 +2691,7 @@ const TYPES = {
             ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
             lastGeom = g;
           }
-          const cw = g.pw / MASK_COLS, fs = clamp(cw * 4.2, 10, 18);
+          const cw = gb.pw / MASK_COLS, fs = clamp(cw * 4.2, 10, 18);
           ctx.font = `500 ${fs}px "Saira Semi Condensed", sans-serif`;
           // earthquakes
           quakes.forEach(q => {
@@ -2526,6 +2758,28 @@ const TYPES = {
             if (hov){ ctx.strokeStyle = C.hi; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, R * 1.5, 0, Math.PI * 2); ctx.stroke(); }
             hits.push({x, y, r:Math.max(R * 1.3, 12), kind:'haz', key:e.link, data:e});
           });
+          // conflict: a glow sized by how many headlines, a burst for strikes or crossed marks for fighting
+          wars.forEach(g2 => {
+            const [x, y] = proj(g, g2.lat, g2.lon), n = g2.items.length, R = cw * (1.2 + Math.min(4, Math.sqrt(n)) * .8);
+            const fresh = g2.latest && Date.now() - g2.latest < 3 * 36e5, hov = hover && hover.kind === 'war' && hover.key === g2.name;
+            const glow = ctx.createRadialGradient(x, y, 0, x, y, R * 2.4);
+            glow.addColorStop(0, rgba(C.war, hov ? .5 : .35)); glow.addColorStop(1, rgba(C.war, 0));
+            ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(x, y, R * 2.4, 0, Math.PI * 2); ctx.fill();
+            if (fresh && !calm()){ const p = (t / 1400) % 1; ctx.strokeStyle = rgba(C.war, (1 - p) * .8); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, R * (.6 + p * 1.8), 0, Math.PI * 2); ctx.stroke(); }
+            ctx.strokeStyle = rgba(C.war, hov ? 1 : .9); ctx.fillStyle = rgba(C.war, hov ? 1 : .9); ctx.lineWidth = 1.6;
+            const s2 = Math.max(4, R * .6);
+            if (g2.strike){
+              ctx.beginPath();
+              for (let i = 0; i < 16; i++){ const a = i * Math.PI / 8, rr = i % 2 ? s2 * .45 : s2; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+              ctx.closePath(); ctx.fill();
+            } else {
+              ctx.beginPath(); ctx.moveTo(x - s2, y - s2); ctx.lineTo(x + s2, y + s2); ctx.moveTo(x + s2, y - s2); ctx.lineTo(x - s2, y + s2); ctx.stroke();
+            }
+            if (hov){ ctx.strokeStyle = C.hi; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, s2 * 1.8, 0, Math.PI * 2); ctx.stroke(); }
+            if (n >= 2 || hov){ ctx.fillStyle = rgba(C.war, .95); ctx.fillText(g2.name, x + s2 + 6, y + s2 + fs * .2); }
+            ctx.lineWidth = 1;
+            hits.push({x, y, r:Math.max(s2 * 1.8, 12), kind:'war', key:g2.name, data:g2});
+          });
           // weather top five: a four-point star in a color that clashes with the theme, fading by rank
           if (wxSet) wxSet.items.forEach((it, k) => {
             const [x, y] = proj(g, it.lat, it.lon), a = WX_ALPHA[k] || .3, R = cw * (2.4 - k * .25);
@@ -2552,6 +2806,7 @@ const TYPES = {
             ctx.beginPath(); ctx.moveTo(x, y - 6); ctx.lineTo(x + 6, y); ctx.lineTo(x, y + 6); ctx.lineTo(x - 6, y); ctx.closePath(); ctx.fill();
             ctx.fillText('ISS', x + 10, y + 4);
           }
+          ctx.restore();
           if (mouse && t - (this.lastHv || 0) > 250){ this.lastHv = t; updateHover(); }
         },
         destroy(){ ro.disconnect(); un.forEach(f => f()); clearInterval(qTimer); NEWSBUS.subs.delete(recompute); }
@@ -4464,6 +4719,10 @@ function customPalette(hex){
 }
 function applyPalette(name){
   C = name === 'custom' ? customPalette(state.customColor) : PALETTES[name] || PALETTES.earth;
+  if (!C.war){
+    const n = parseInt(C.accent.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255;
+    C = {...C, war: r > 200 && g < 140 ? '#ffe14d' : '#ff3348'};  // red, or yellow when the theme itself is red
+  }
   if (!C.snow){
     const n = parseInt(C.accent.slice(1), 16), r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255;
     const bluish = b > r + 30 && b >= g - 10;
